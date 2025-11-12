@@ -1,0 +1,14 @@
+{
+  "console_output_enabled": true,
+  "enabled_categories": {
+    "takvim": true,
+    "animasiya": true,
+    "database": true,
+    "ui": true,
+    "vacation": true,
+    "employee": true,
+    "signal": true,
+    "performance": true,
+    "umumi": true
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "versions": [
+    {
+      "version": "1.0",
+      "date": "2025-11-12 21:39:45",
+      "notes": "indi connection stringleri silirem yalniz tenant id olacaq ve emailde servere kocurdum",
+      "source_path": "C:/Users/nesib/OneDrive/Masaüstü/v7.14",
+      "target_path": "C:/Users/nesib/OneDrive/Masaüstü/versiyalar",
+      "zip_path": "C:/Users/nesib/OneDrive/Masaüstü/versiyalar\\v1.0.zip",
+      "files_count": 174
+    }
+  ]
+}

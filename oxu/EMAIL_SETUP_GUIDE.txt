@@ -1,0 +1,44 @@
+===================================================
+    EMAIL XİDMƏTİNİ AKTİV ETMƏK ÜÇÜN TƏLİMAT
+===================================================
+
+Email xidməti aktiv deyil. Aktivləşdirmək üçün aşağıdakı addımları izləyin:
+
+ADDIM 1: Gmail hesabında 2FA (İki Faktorlu Yoxlama) aktiv edin
+-------------------------------------------------------------
+1. Gmail hesabınıza daxil olun
+2. Google hesabınızın təhlükəsizlik bölməsinə keçin
+3. "2-Step Verification" (İki addımlı yoxlama) aktivləşdirin
+
+ADDIM 2: Gmail App Password yaradın
+------------------------------------
+1. https://myaccount.google.com/apppasswords ünvanına daxil olun
+2. "Select app" bölməsində "Mail" seçin
+3. "Select device" bölməsində "Other" seçin və "Mezuniyyet Sistemi" yazın
+4. "Generate" düyməsinə basın
+5. 16 simvollu parol görünəcək (məsələn: "abcd efgh ijkl mnop")
+
+ADDIM 3: Email konfiqurasiyasına App Password əlavə edin
+--------------------------------------------------------
+1. "email_config.json" faylını açın
+2. "app_password" sahəsindəki "your-app-password-here" mətnini silin
+3. Gmail-dən aldığınız 16 simvollu parolu yapışdırın (boşluqlar olmadan)
+4. Faylı yadda saxlayın
+
+NÜMUNƏplikasiya: email_config.json
+-----------------------------------
+{
+    "app_password": "abcdefghijklmnop",
+    "sender_email": "vacationseasonplans@gmail.com",
+    "instructions": "Gmail App Password-i buraya yazın"
+}
+
+ADDIM 4: Proqramı yenidən başladın
+----------------------------------
+Email xidməti avtomatik olaraq aktiv olacaq.
+
+
+===================================================
+QEYD: Əgər email xidmətini aktiv etmək istəmirsinizsə,
+admin işçilərin şifrələrini birbaşa dəyişə bilər.
+===================================================

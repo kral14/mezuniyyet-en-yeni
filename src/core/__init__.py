@@ -1,0 +1,1 @@
+# Core modulu - Əsas funksiyalar 

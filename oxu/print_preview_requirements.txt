@@ -1,0 +1,21 @@
+# Çap Önizləmə Sistemi üçün Tələb olunan Modullar
+
+# WebView modulu - HTML render üçün
+pywebview==4.4.1
+
+# PDF yaratmaq üçün (opsional)
+# wkhtmltopdf quraşdırılmalıdır (manual)
+
+# Browser automation üçün (opsional)
+selenium==4.15.2
+
+# HTML parsing üçün
+beautifulsoup4==4.12.2
+lxml==4.9.3
+
+# PDF generation üçün alternativ
+reportlab==4.0.7
+
+# Image processing üçün
+Pillow==10.1.0
+

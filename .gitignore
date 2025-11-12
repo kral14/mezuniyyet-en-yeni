@@ -1,0 +1,40 @@
+# Təhlükəsizlik faylları
+email_config.json
+connection_settings.json
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Veritaban faylları
+*.db
+*.sqlite
+*.sqlite3
+
+# Log faylları
+*.log
+debug_logs/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Build faylları
+build/
+dist/
+*.spec
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
