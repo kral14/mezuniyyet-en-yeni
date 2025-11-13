@@ -313,5 +313,27 @@ class SettingsManager:
 
     def clear_active_tenant(self):
         self.set_active_tenant(None, None)
+    
+    def get_window_position(self):
+        """Pəncərə pozisiyasını alır"""
+        position = self.data.get("window_position", None)
+        if position:
+            print(f"🔍 [DEBUG] SettingsManager: Saxlanmış pozisiyası oxundu: x={position.get('x')}, y={position.get('y')}, {position.get('width')}x{position.get('height')}, state={position.get('state')}")
+        else:
+            print(f"⚠️ [DEBUG] SettingsManager: Saxlanmış pozisiyası yoxdur")
+        return position
+    
+    def set_window_position(self, x, y, width, height, state='normal'):
+        """Pəncərə pozisiyasını saxlayır"""
+        self.data["window_position"] = {
+            "x": x,
+            "y": y,
+            "width": width,
+            "height": height,
+            "state": state
+        }
+        print(f"🔍 [DEBUG] SettingsManager: Pəncərə pozisiyası JSON-a yazılır: x={x}, y={y}, {width}x{height}, state={state}")
+        self.save()
+        print(f"✅ [DEBUG] SettingsManager: Pəncərə pozisiyası JSON faylına yazıldı: {self.filepath}")
 
 # init_main_db() çağırılması silindi - lokal bazaya ehtiyac yoxdur

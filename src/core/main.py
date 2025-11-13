@@ -670,6 +670,15 @@ class UnifiedApplication(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.frames = {}
         
+        # Pəncərə pozisiyasını saxlamaq üçün settings manager
+        self.settings = SettingsManager()
+        
+        # Pəncərə pozisiyasını bərpa et
+        self._restore_window_position()
+        
+        # Pəncərə hərəkət etdikdə və ya ölçüsü dəyişdikdə pozisiyasını saxla
+        self.bind('<Configure>', self._on_window_configure_save_position)
+        
         # Tema sistemi silindi
         
         # Lokal bazanı başlatmaq lazım deyil - bütün məlumatlar Neon bazasındadır
@@ -836,6 +845,13 @@ class UnifiedApplication(tk.Tk):
         settings = SettingsManager()
         current_tenant_id = settings.get_tenant_id()
         
+        # Pəncərə pozisiyasını bərpa et (pəncərəni göstərməzdən əvvəl)
+        # Əgər saxlanmış pozisiyası yoxdursa, center_window çağırılacaq
+        position = self.settings.get_window_position()
+        if not position:
+            # Saxlanmış pozisiyası yoxdursa, default ölçüləri təyin et
+            self.geometry("1200x800")
+        
         if current_tenant_id:
             # Aktiv şirkət varsa, birbaşa giriş pəncərəsinə keçirik
             print(f"DEBUG: Active company found: {current_tenant_id}")
@@ -849,6 +865,7 @@ class UnifiedApplication(tk.Tk):
         
         # Pəncərəni konfiqurasiya edildikdən sonra göstəririk
         print(f"DEBUG: Showing window after configuration")
+        self.update_idletasks()  # Pəncərəni dərhal yenilə (pozisiyasını bərpa etmək üçün)
         self.deiconify()
         self.lift()
         self.focus_force()
@@ -865,9 +882,14 @@ class UnifiedApplication(tk.Tk):
         self.title(f"Məzuniyyət İdarəetmə Sistemi v{self.version_info['current']} - Şirkət Seçimi")
         
         # Pəncərəni mərkəzə yerləşdir və ölçüsünü təyin et (yalnız normal rejimdə)
+        # Əgər saxlanmış pozisiyası varsa, onu istifadə et
+        position = self.settings.get_window_position()
         current_state = self.state()
+        
         if current_state != 'zoomed' and current_state != 'maximized':
-            self.center_window(600, 400)
+            # Əgər saxlanmış pozisiyası yoxdursa və ya launcher rejimi üçün fərqli ölçü lazımdırsa
+            if not position or position.get("width") != 600 or position.get("height") != 400:
+                self.center_window(600, 400)
             self.resizable(False, False)  # Ölçü dəyişməyə icazə verilmir
             self.state('normal')          # Maximize olmur
         else:
@@ -1376,8 +1398,123 @@ class UnifiedApplication(tk.Tk):
         # show_frame əvəzinə birbaşa _create_login_frame çağırırıq
         self._create_login_frame()
 
+    def _save_window_position(self):
+        """Pəncərə pozisiyasını saxlayır"""
+        try:
+            # Pəncərə state-ni yoxla
+            current_state = self.state()
+            print(f"🔍 [DEBUG] Pəncərə pozisiyası saxlanır: state={current_state}")
+            
+            # Əgər pəncərə tam ekrandadırsa, state-ni saxla
+            if current_state == 'zoomed' or current_state == 'maximized':
+                # Tam ekrandadırsa, son normal ölçüsünü və pozisiyasını saxla
+                x = self.winfo_x()
+                y = self.winfo_y()
+                width = self.winfo_width()
+                height = self.winfo_height()
+                print(f"🔍 [DEBUG] Tam ekran rejimi: x={x}, y={y}, width={width}, height={height}, state={current_state}")
+                self.settings.set_window_position(x, y, width, height, current_state)
+                print(f"✅ [DEBUG] Pəncərə pozisiyası saxlandı (tam ekran): x={x}, y={y}, {width}x{height}, state={current_state}")
+            else:
+                # Normal rejimdədirsə, cari pozisiyasını saxla
+                geometry = self.geometry()
+                print(f"🔍 [DEBUG] Cari geometry: {geometry}")
+                # Geometry formatı: "widthxheight+x+y" və ya "widthxheight"
+                if '+' in geometry:
+                    parts = geometry.split('+')
+                    size_part = parts[0]
+                    x = int(parts[1])
+                    y = int(parts[2])
+                    width, height = map(int, size_part.split('x'))
+                else:
+                    # Yalnız ölçü var, pozisiyası yoxdur
+                    width, height = map(int, geometry.split('x'))
+                    x = self.winfo_x()
+                    y = self.winfo_y()
+                
+                print(f"🔍 [DEBUG] Normal rejim: x={x}, y={y}, width={width}, height={height}")
+                self.settings.set_window_position(x, y, width, height, 'normal')
+                print(f"✅ [DEBUG] Pəncərə pozisiyası saxlandı (normal): x={x}, y={y}, {width}x{height}")
+        except Exception as e:
+            logging.warning(f"Pəncərə pozisiyası saxlanarkən xəta: {e}")
+            print(f"❌ [DEBUG] Pəncərə pozisiyası saxlanarkən xəta: {e}")
+    
+    def _restore_window_position(self):
+        """Pəncərə pozisiyasını bərpa edir"""
+        try:
+            position = self.settings.get_window_position()
+            print(f"🔍 [DEBUG] Pəncərə pozisiyası bərpa edilir...")
+            
+            if position:
+                x = position.get("x")
+                y = position.get("y")
+                width = position.get("width")
+                height = position.get("height")
+                state = position.get("state", "normal")
+                
+                print(f"🔍 [DEBUG] Saxlanmış pozisiyası: x={x}, y={y}, width={width}, height={height}, state={state}")
+                
+                # Ekran sərhədlərini yoxla (ikili monitorda düzgün işləməsi üçün)
+                screen_width = self.winfo_screenwidth()
+                screen_height = self.winfo_screenheight()
+                print(f"🔍 [DEBUG] Ekran ölçüsü: {screen_width}x{screen_height}")
+                
+                # Pəncərə ekrandan kənarda deyilsə, pozisiyasını bərpa et
+                if x is not None and y is not None and width is not None and height is not None:
+                    # Pəncərə ekran sərhədləri daxilindədirsə (ikili monitorda düzgün işləməsi üçün)
+                    # X və Y koordinatları ekran sərhədləri daxilindədirsə və ya yaxınlığındadırsa
+                    if (-width <= x <= screen_width + 100) and (-height <= y <= screen_height + 100):
+                        # Pəncərəni təyin et - pəncərəni göstərməzdən əvvəl
+                        new_geometry = f"{width}x{height}+{x}+{y}"
+                        print(f"✅ [DEBUG] Pəncərə pozisiyası bərpa edilir: {new_geometry}")
+                        self.geometry(new_geometry)
+                        
+                        # Əgər tam ekranda idi, state-ni bərpa et (pəncərə göstərildikdən sonra)
+                        if state == 'zoomed' or state == 'maximized':
+                            print(f"✅ [DEBUG] Tam ekran rejimi bərpa edilir: {state}")
+                            self.after(200, lambda s=state: self.state(s))
+                    else:
+                        # Pəncərə ekrandan kənardadırsa, mərkəzə yerləşdir
+                        print(f"⚠️ [DEBUG] Pəncərə ekrandan kənardadır (x={x}, y={y}), mərkəzə yerləşdiriləcək")
+                        pass  # center_window çağırılmayacaq, çünki determine_initial_mode-da çağırılacaq
+                else:
+                    print(f"⚠️ [DEBUG] Saxlanmış pozisiyada bəzi dəyərlər None-dir: x={x}, y={y}, width={width}, height={height}")
+            else:
+                print(f"⚠️ [DEBUG] Saxlanmış pəncərə pozisiyası yoxdur")
+        except Exception as e:
+            logging.warning(f"Pəncərə pozisiyası bərpa edilərkən xəta: {e}")
+            print(f"❌ [DEBUG] Pəncərə pozisiyası bərpa edilərkən xəta: {e}")
+    
+    def _on_window_configure_save_position(self, event=None):
+        """Pəncərə konfiqurasiyası dəyişəndə pozisiyasını saxlayır"""
+        # Yalnız pəncərə özü üçün event-ləri işlə (uşaqlar üçün deyil)
+        if event and event.widget != self:
+            return
+        
+        # Pəncərə görünürdürsə və normal rejimdədirsə, pozisiyasını saxla
+        try:
+            if self.winfo_viewable() and self.state() == 'normal':
+                # Qısa gecikmə ilə saxla (çox tez-tez yazılmasın)
+                if not hasattr(self, '_position_save_scheduled'):
+                    self._position_save_scheduled = True
+                    self.after(500, self._delayed_save_position)
+        except:
+            pass
+    
+    def _delayed_save_position(self):
+        """Gecikmə ilə pəncərə pozisiyasını saxlayır"""
+        try:
+            print(f"🔍 [DEBUG] Gecikmə ilə pəncərə pozisiyası saxlanır...")
+            self._save_window_position()
+        finally:
+            self._position_save_scheduled = False
+    
     def on_closing(self):
         """Pəncərə 'X' ilə bağlanarkən həmişə sessiyanı silir."""
+        # Pəncərə pozisiyasını saxla
+        print(f"🔍 [DEBUG] Pəncərə bağlanır, pozisiyası saxlanır...")
+        self._save_window_position()
+        
         if self.current_user and self.session_id:
             try:
                 database.remove_user_session(self.session_id, self.login_history_id)

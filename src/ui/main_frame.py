@@ -1917,25 +1917,159 @@ class MainAppFrame(ttk.Frame):
             height=25,  # Hündürlüyü artırıldı - daha uzun
             bg='#ffffff',  # Ağ fon
             fg='#333333',  # Tünd boz mətn
-            selectbackground='#e3f2fd',  # Açıq mavi seçim fonu
-            selectforeground='#1976d2',  # Mavi seçilmiş mətn
-            activestyle='none',  # Aktiv stil yoxdur - daha təmiz
+            selectbackground='#ffffff',  # Ağ seçim fonu - gri highlight yoxdur
+            selectforeground='#333333',  # Tünd boz seçilmiş mətn
+            activestyle='none',  # Aktiv stil yoxdur - mouse hover highlight-ı bloklayır
             borderwidth=0,  # Border yoxdur
-            highlightcolor='#007bff',  # Focus rəngi
-            cursor='hand2'  # Əl kursoru
+            highlightcolor='#ffffff',  # Ağ focus rəngi - highlight yoxdur
+            cursor='hand2',  # Əl kursoru
+            takefocus=False  # Focus almasın - avtomatik highlight-ı bloklayır
         )
         # Scrollbar gizlədirildi
         # vsb = ttk.Scrollbar(listbox_frame, orient="vertical", command=self.employee_listbox.yview)
         # self.employee_listbox.configure(yscrollcommand=vsb.set)
         # vsb.pack(side='right', fill='y', padx=(2, 0))
         self.employee_listbox.pack(side='left', expand=True, fill="both")
-        self.employee_listbox.bind("<<ListboxSelect>>", self.on_employee_select)
+        
+        # Scroll pozisyonunu saxla (Button-1 event-dən əvvəl)
+        self._listbox_scroll_pos_before_click = None
+        self._listbox_button1_pressed = False  # Button-1 basılıb-basılmadığını izlə
+        self._listbox_last_click_time = 0  # Son klik vaxtı (avtomatik seçimi qarşısını almaq üçün)
+        self._last_valid_selection = None  # Son etibarlı seçim (avtomatik seçim bloklandıqda bərpa etmək üçün)
+        import time
+        
+        def on_listbox_button1(e):
+            """Button-1 event handler - scroll pozisyonunu saxla"""
+            try:
+                if hasattr(self, 'employee_listbox'):
+                    self._listbox_button1_pressed = True  # Button-1 basıldı
+                    self._listbox_last_click_time = time.time()  # Son klik vaxtını qeyd et
+                    self._listbox_scroll_pos_before_click = self.employee_listbox.index("@0,0")
+                    
+                    # Klik edilən item-i tap və etibarlı seçim kimi saxla
+                    try:
+                        click_y = e.y
+                        click_index = self.employee_listbox.nearest(click_y)
+                        self._last_valid_selection = click_index
+                        print(f"🔍 [DEBUG] Button-1 event: scroll pozisyonu saxlandı: {self._listbox_scroll_pos_before_click}, click_index={click_index}")
+                    except:
+                        print(f"🔍 [DEBUG] Button-1 event: scroll pozisyonu saxlandı: {self._listbox_scroll_pos_before_click}")
+            except Exception as ex:
+                print(f"🔍 [DEBUG] Button-1 event: scroll pozisyonu saxlanma xətası: {ex}")
+        
+        def on_listbox_button1_release(e):
+            """Button-1 release event handler"""
+            # Button-1 buraxıldı, amma qısa müddət ərzində seçim dəyişikliyinə icazə ver (200ms)
+            # Bu, normal klik davranışını təmin edir
+            self.after(200, lambda: setattr(self, '_listbox_button1_pressed', False))
+        
+        def on_listbox_motion(e):
+            """Mouse motion event handler - avtomatik seçimi və highlight-ı tam bloklayır"""
+            # Yalnız Button-1 basılı olduqda və ya yaxın zamanda basıldıqda seçimə icazə ver
+            current_time = time.time()
+            time_since_click = current_time - self._listbox_last_click_time
+            allow_selection = self._listbox_button1_pressed or time_since_click < 0.3  # 300ms icazə ver
+            
+            if not allow_selection:
+                # Button-1 basılmadıqda və ya çox vaxt keçibsə, avtomatik seçimi və highlight-ı tam blokla
+                try:
+                    # Mouse altındakı item index-i
+                    mouse_y = e.y
+                    mouse_index = self.employee_listbox.nearest(mouse_y)
+                    
+                    # Cari seçimi yoxla
+                    current_selection = self.employee_listbox.curselection()
+                    
+                    # Avtomatik selection-ı tam blokla - həmişə əvvəlki seçimi saxla
+                    self.employee_listbox.unbind("<<ListboxSelect>>")
+                    if self._last_valid_selection is not None:
+                        # Əvvəlki seçimi bərpa et
+                        self.employee_listbox.selection_clear(0, tb.END)
+                        self.employee_listbox.selection_set(self._last_valid_selection)
+                    else:
+                        # Əgər etibarlı seçim yoxdursa, cari seçimi saxla
+                        if current_selection:
+                            self.employee_listbox.selection_clear(0, tb.END)
+                            self.employee_listbox.selection_set(current_selection[0])
+                        else:
+                            # Heç bir seçim yoxdursa, seçimi tam təmizlə
+                            self.employee_listbox.selection_clear(0, tb.END)
+                    self.employee_listbox.bind("<<ListboxSelect>>", self.on_employee_select)
+                    
+                    # Focus-u blokla - bu, gri highlight-ı qarşısını alır
+                    try:
+                        parent_widget = self.employee_listbox.master
+                        if parent_widget:
+                            parent_widget.focus_set()
+                    except:
+                        pass
+                        
+                except Exception as ex:
+                    print(f"🔍 [DEBUG] Motion handler xətası: {ex}")
+                
+                return "break"  # Event-i dayandır, avtomatik seçimi və highlight-ı tam blokla
+            # Button-1 basılıdırsa və ya yaxın zamanda basıldıqsa, normal davranışa icazə ver
+        
+        def on_listbox_key(e):
+            """Keyboard event handler - klaviatura ilə gezinməni bloklayır"""
+            # Arrow keys və digər navigation keys-i blokla
+            if e.keysym in ['Up', 'Down', 'Prior', 'Next', 'Home', 'End']:
+                # Yalnız Button-1 basılı olduqda və ya yaxın zamanda basıldıqda icazə ver
+                current_time = time.time()
+                time_since_click = current_time - self._listbox_last_click_time
+                allow_selection = self._listbox_button1_pressed or time_since_click < 0.3
+                
+                if not allow_selection:
+                    print(f"🔍 [DEBUG] Keyboard navigation bloklandı: {e.keysym}")
+                    return "break"  # Keyboard navigation-u blokla
+        
+        # Button-1 event-dən əvvəl scroll pozisyonunu saxla
+        # Motion event-i Button-1-dən ƏVVƏL bind et ki, avtomatik seçim bloklansın
+        self.employee_listbox.bind("<Motion>", on_listbox_motion, add=True)  # Mouse motion event-i əlavə et (ƏVVƏL)
+        self.employee_listbox.bind("<Button-1>", on_listbox_button1, add=True)
+        self.employee_listbox.bind("<ButtonRelease-1>", on_listbox_button1_release, add=True)
+        self.employee_listbox.bind("<Key>", on_listbox_key, add=True)  # Keyboard event-i əlavə et
+        
+        # <<ListboxSelect>> event-ini bloklamaq üçün wrapper funksiya
+        def on_listbox_select_wrapper(event):
+            """<<ListboxSelect>> event wrapper - avtomatik seçimi bloklayır"""
+            # Yalnız Button-1 basıldıqda və ya yaxın zamanda basıldıqda icazə ver
+            current_time = time.time()
+            time_since_click = current_time - self._listbox_last_click_time
+            allow_selection = self._listbox_button1_pressed or time_since_click < 0.5  # 500ms icazə ver
+            
+            if not allow_selection:
+                # Avtomatik seçim bloklandı - əvvəlki seçimi bərpa et
+                print(f"🔍 [DEBUG] <<ListboxSelect>>: Avtomatik seçim bloklandı (time_since_click={time_since_click:.3f}s)")
+                try:
+                    if self._last_valid_selection is not None:
+                        self.employee_listbox.selection_clear(0, tb.END)
+                        self.employee_listbox.selection_set(self._last_valid_selection)
+                except:
+                    pass
+                return  # Event-i blokla
+            
+            # Button-1 basıldıqda və ya yaxın zamanda basıldıqsa, normal handler-i çağır
+            self.on_employee_select(event)
+        
+        self.employee_listbox.bind("<<ListboxSelect>>", on_listbox_select_wrapper)
         
         # Hover effekti üçün event binding
         def on_enter_listbox(e):
+            """Listbox-a daxil olduqda - cursor dəyişir, amma focus və highlight yoxdur"""
             self.employee_listbox.config(cursor='hand2')
+            # Focus-u blokla - bu, gri highlight-ı qarşısını alır
+            try:
+                parent_widget = self.employee_listbox.master
+                if parent_widget:
+                    parent_widget.focus_set()
+            except:
+                pass
+        
         def on_leave_listbox(e):
+            """Listbox-dan çıxdıqda"""
             self.employee_listbox.config(cursor='')
+        
         self.employee_listbox.bind('<Enter>', on_enter_listbox)
         self.employee_listbox.bind('<Leave>', on_leave_listbox)
         
@@ -1982,11 +2116,18 @@ class MainAppFrame(ttk.Frame):
                     self.after(400, lambda: self.refresh_employee_list() if hasattr(self, 'refresh_employee_list') else None)
                     self._dashboard_data_loaded = True
         elif view_name == 'employee_details':
+            # Current view-u əvvəlcə təyin et ki, load_and_refresh_data düzgün işləsin
+            self.current_view = view_name
+            print(f"DEBUG: Current view updated (before load): {self.current_view}")
+            
             # Employee details üçün tam məlumatları yüklə (vacation məlumatları lazımdır)
-            if not hasattr(self, '_full_data_loaded') or not self._full_data_loaded:
-                logging.info("Employee details üçün tam məlumatlar yüklənir...")
-                self.after(100, lambda: self.load_and_refresh_data(load_full_data=True) if hasattr(self, 'load_and_refresh_data') else None)
-                self._full_data_loaded = True
+            # _full_data_loaded flag-ini yoxlamaq lazım deyil - hər dəfə yeniləmək lazımdır
+            # Scroll pozisyonunu korumaq üçün cari seçimi saxla
+            _, current_selection = self.get_selected_employee_name() if hasattr(self, 'get_selected_employee_name') else (None, None)
+            logging.info("Employee details üçün tam məlumatlar yüklənir...")
+            self.after(100, lambda sel=current_selection: self.load_and_refresh_data(load_full_data=True, selection_to_keep=sel) if hasattr(self, 'load_and_refresh_data') else None)
+            # Flag-i silmək lazım deyil - hər dəfə yeniləmək lazımdır
+            # self._full_data_loaded = True
         
         frame = self.views.get(view_name)
         # print(f"DEBUG: Frame found: {frame}")
@@ -2010,8 +2151,9 @@ class MainAppFrame(ttk.Frame):
                     logging.info(f"Frame tkraise() tamamlandı")
                     print(f"DEBUG: Frame tkraise() completed")
                     
-                    # Current view-u yenilə
-                    self.current_view = view_name
+                    # Current view-u yenilə (əgər əvvəlcə təyin olunmayıbsa)
+                    if not hasattr(self, 'current_view') or self.current_view != view_name:
+                        self.current_view = view_name
                     print(f"DEBUG: Current view updated: {self.current_view}")
                     
                     # Frame-in görünürlüyünü yoxla
@@ -2066,15 +2208,53 @@ class MainAppFrame(ttk.Frame):
             self.delete_employee()
     
     def on_employee_select(self, event=None):
-        # Debug mesajlarını azaldıq - yalnız xəta halında log yazırıq
-        # logging.debug(f"on_employee_select çağırıldı. event: {event}, event.widget: {getattr(event, 'widget', None)}")
-        # print(f"DEBUG: on_employee_select çağırıldı - event: {event}")
+        import traceback
+        
+        # Debug: Çağırılan yeri və event məlumatlarını logla
+        caller_stack = ''.join(traceback.format_stack()[-3:-1])
+        event_info = f"event={event}, widget={getattr(event, 'widget', None) if event else None}"
+        print(f"🔍 [DEBUG] on_employee_select çağırıldı: {event_info}")
+        print(f"🔍 [DEBUG] Çağırılan yer:\n{caller_stack}")
+        
+        # Avtomatik gezinmə yoxlaması artıq wrapper-də edilir, burada yalnız proqramatik seçimləri yoxla
+        # Proqramatik seçimləri yoxla (event None və ya widget fərqli ola bilər)
+        is_programmatic = (event is None) or (hasattr(event, 'widget') and event.widget != self.employee_listbox)
+        
+        # Wrapper-dən gələn event-lər artıq yoxlanılıb, burada yalnız proqramatik seçimləri icazə ver
+        if not is_programmatic:
+            # Normal event (wrapper-dən gəlir), davam et
+            pass
+        
+        # Scroll pozisyonunu logla və saxla (show_view çağrıldıqdan sonra geri yükləmək üçün)
+        # Button-1 event-dən əvvəl saxlanmış scroll pozisyonunu istifadə et
+        scroll_pos_to_restore = getattr(self, '_listbox_scroll_pos_before_click', None)
+        try:
+            if hasattr(self, 'employee_listbox'):
+                current_selection = self.employee_listbox.curselection()
+                if current_selection:
+                    selected_idx = current_selection[0]
+                    try:
+                        first_visible = self.employee_listbox.index("@0,0")
+                        last_visible = self.employee_listbox.index("@0,{}".format(self.employee_listbox.winfo_height()))
+                        # Əgər Button-1 event-dən əvvəl scroll pozisyonu yoxdursa, cari pozisyonu istifadə et
+                        if scroll_pos_to_restore is None:
+                            scroll_pos_to_restore = first_visible
+                        print(f"🔍 [DEBUG] on_employee_select: selected_idx={selected_idx}, first_visible={first_visible}, last_visible={last_visible}, görünür={first_visible <= selected_idx <= last_visible}, scroll_pos_to_restore={scroll_pos_to_restore} (Button-1-dən: {getattr(self, '_listbox_scroll_pos_before_click', None)})")
+                    except Exception as e:
+                        print(f"🔍 [DEBUG] on_employee_select: scroll pozisyonu alına bilmədi: {e}")
+        except Exception as e:
+            print(f"🔍 [DEBUG] on_employee_select: scroll pozisyonu xətası: {e}")
         
         # Yalnızca event-in mənbəyi listbox-dursa və seçim varsa işləsin
         if event and event.widget != self.employee_listbox:
             logging.debug("Event widget employee_listbox deyil, çıxırıq.")
-            print("DEBUG: Event widget employee_listbox deyil, çıxırıq.")
+            print(f"🔍 [DEBUG] Event widget employee_listbox deyil, çıxırıq. widget={event.widget}")
             return
+        
+        # Cari seçimi etibarlı seçim kimi saxla (avtomatik seçim bloklandıqda bərpa etmək üçün)
+        if hasattr(self, 'employee_listbox') and self.employee_listbox.curselection():
+            current_idx = self.employee_listbox.curselection()[0]
+            self._last_valid_selection = current_idx
         
         # Əgər şöbə başlığı seçilibsə, aç/yığ
         if hasattr(self, 'employee_listbox') and self.employee_listbox.curselection():
@@ -2092,8 +2272,9 @@ class MainAppFrame(ttk.Frame):
                 else:
                     self.department_visibility[dept_name] = True  # İlk dəfə açılır
                 
-                # List-i yenilə
-                self.refresh_employee_list()
+                # List-i yenilə - cari seçimi saxla (scroll pozisyonunu koru)
+                _, current_selection = self.get_selected_employee_name()
+                self.refresh_employee_list(selection_to_keep=current_selection)
                 return
             
         if not self.employee_listbox.curselection():
@@ -2155,6 +2336,9 @@ class MainAppFrame(ttk.Frame):
         self.views['employee_details'].update_data(info, self.current_user)
         
         # Təhlükəsizlik yoxlaması: Adi istifadəçi yalnız öz məlumatını görə bilər
+        # show_view çağrıldığında load_and_refresh_data çağrılır, bu da refresh_employee_list çağırır
+        # Bu, otomatik gezinməyə səbəb olmaması üçün event'i geçici olaraq devre dışı bıraktıq
+        print(f"🔍 [DEBUG] on_employee_select: show_view çağrılmadan əvvəl current_view={getattr(self, 'current_view', None)}")
         if self.current_user['role'].strip() == 'admin':
             logging.info("Admin üçün employee_details görünüşü göstərilir")
             print("👑 DEBUG: Admin üçün employee_details görünüşü göstərilir")
@@ -2164,6 +2348,45 @@ class MainAppFrame(ttk.Frame):
             logging.info("Adi istifadəçi üçün employee_details görünüşü göstərilir")
             print("👤 DEBUG: Adi istifadəçi üçün employee_details görünüşü göstərilir")
             self.show_view('employee_details')
+        
+        print(f"🔍 [DEBUG] on_employee_select: show_view çağrıldıqdan sonra current_view={getattr(self, 'current_view', None)}")
+        
+        # Scroll pozisyonunu geri yüklə (show_view içində refresh_employee_list çağrıldığı üçün scroll pozisyonu dəyişə bilər)
+        if scroll_pos_to_restore is not None:
+            try:
+                # Qısa gecikmə əlavə et ki refresh_employee_list bitə bilsin
+                def restore_scroll():
+                    try:
+                        if hasattr(self, 'employee_listbox'):
+                            current_selection = self.employee_listbox.curselection()
+                            if current_selection:
+                                selected_idx = current_selection[0]
+                                try:
+                                    first_visible = self.employee_listbox.index("@0,0")
+                                    last_visible = self.employee_listbox.index("@0,{}".format(self.employee_listbox.winfo_height()))
+                                    # Əgər seçim görünürdürsə və scroll pozisyonu dəyişibsə, geri yüklə
+                                    if first_visible <= selected_idx <= last_visible:
+                                        if first_visible != scroll_pos_to_restore:
+                                            print(f"🔍 [DEBUG] on_employee_select: Scroll pozisyonu geri yüklənir: {scroll_pos_to_restore} (cari: {first_visible})")
+                                            self.employee_listbox.see(scroll_pos_to_restore)
+                                            try:
+                                                restored_first_visible = self.employee_listbox.index("@0,0")
+                                                print(f"🔍 [DEBUG] on_employee_select: Scroll pozisyonu geri yükləndi: {restored_first_visible}")
+                                            except:
+                                                pass
+                                        else:
+                                            print(f"🔍 [DEBUG] on_employee_select: Scroll pozisyonu dəyişməyib: {first_visible}")
+                                    else:
+                                        print(f"🔍 [DEBUG] on_employee_select: Seçim görünür deyil, scroll pozisyonu geri yüklənmir: selected_idx={selected_idx}, first_visible={first_visible}, last_visible={last_visible}")
+                                except Exception as e:
+                                    print(f"🔍 [DEBUG] on_employee_select: Scroll pozisyonu geri yükləmə xətası: {e}")
+                    except Exception as e:
+                        print(f"🔍 [DEBUG] on_employee_select: restore_scroll xətası: {e}")
+                
+                # 200ms gecikmə ilə scroll pozisyonunu geri yüklə
+                self.after(200, restore_scroll)
+            except Exception as e:
+                print(f"🔍 [DEBUG] on_employee_select: Scroll pozisyonu geri yükləmə planlama xətası: {e}")
         
         print(f"✅ DEBUG: on_employee_select tamamlandı - {selected_name}")
 
@@ -2250,9 +2473,64 @@ class MainAppFrame(ttk.Frame):
             if clean_item == target_name:
                 logging.info(f"Listbox-da {target_name} tapıldı, index: {i}")
                 print(f"✅ DEBUG: Listbox-da {target_name} tapıldı, index: {i}")
-                self.employee_listbox.selection_clear(0, tb.END)
-                self.employee_listbox.selection_set(i)
-                self.employee_listbox.see(i)  # İşçini görünür et
+                
+                # Event'i geçici olaraq devre dışı bırak ki, selection_set() <<ListboxSelect>> event'ini tetiklemesin
+                try:
+                    self.employee_listbox.unbind("<<ListboxSelect>>")
+                    print(f"🔍 [DEBUG] show_employee_by_id: <<ListboxSelect>> event'i geçici olaraq kaldırıldı")
+                    
+                    # Scroll pozisyonunu saxla
+                    scroll_pos_before = None
+                    try:
+                        scroll_pos_before = self.employee_listbox.index("@0,0")
+                        last_visible_before = self.employee_listbox.index("@0,{}".format(self.employee_listbox.winfo_height()))
+                        print(f"🔍 [DEBUG] show_employee_by_id: selection_set-dən ƏVVƏL scroll pozisyonu: first_visible={scroll_pos_before}, last_visible={last_visible_before}, target_idx={i}, görünür={scroll_pos_before <= i <= last_visible_before}")
+                    except:
+                        pass
+                    
+                    self.employee_listbox.selection_clear(0, tb.END)
+                    self.employee_listbox.selection_set(i)
+                    
+                    # Seçim görünür deyilsə, scroll et
+                    try:
+                        first_visible_after = self.employee_listbox.index("@0,0")
+                        last_visible_after = self.employee_listbox.index("@0,{}".format(self.employee_listbox.winfo_height()))
+                        print(f"🔍 [DEBUG] show_employee_by_id: selection_set-dən SONRA scroll pozisyonu: first_visible={first_visible_after}, last_visible={last_visible_after}")
+                        
+                        # Əgər seçim görünür deyilsə, scroll et
+                        if i < first_visible_after or i > last_visible_after:
+                            print(f"🔍 [DEBUG] show_employee_by_id: Seçim görünür deyil, see({i}) çağırılır")
+                            self.employee_listbox.see(i)
+                            try:
+                                first_visible_final = self.employee_listbox.index("@0,0")
+                                last_visible_final = self.employee_listbox.index("@0,{}".format(self.employee_listbox.winfo_height()))
+                                print(f"🔍 [DEBUG] show_employee_by_id: see({i}) sonrası scroll pozisyonu: first_visible={first_visible_final}, last_visible={last_visible_final}")
+                            except:
+                                pass
+                        else:
+                            print(f"🔍 [DEBUG] show_employee_by_id: Seçim artıq görünür, see() çağırılmadı")
+                            # Əgər Tkinter otomatik scroll etmişsə və seçim artıq görünürsə, scroll pozisyonunu geri qaytar
+                            if scroll_pos_before is not None and first_visible_after != scroll_pos_before:
+                                print(f"🔍 [DEBUG] show_employee_by_id: ⚠️ Tkinter otomatik scroll etdi! Əvvəl: {scroll_pos_before}, sonra: {first_visible_after}, geri qaytarılır...")
+                                self.employee_listbox.see(scroll_pos_before)
+                                try:
+                                    restored_first_visible = self.employee_listbox.index("@0,0")
+                                    print(f"🔍 [DEBUG] show_employee_by_id: ✅ Scroll pozisyonu geri qaytarıldı: {restored_first_visible}")
+                                except:
+                                    pass
+                    except Exception as e:
+                        print(f"🔍 [DEBUG] show_employee_by_id: Scroll kontrolü xətası: {e}")
+                        # Xəta halında sadəcə see() çağır
+                        self.employee_listbox.see(i)
+                    
+                    self.employee_listbox.bind("<<ListboxSelect>>", self.on_employee_select)
+                    print(f"🔍 [DEBUG] show_employee_by_id: <<ListboxSelect>> event'i geri qaytarıldı")
+                except Exception as e:
+                    print(f"❌ [DEBUG] show_employee_by_id event binding xətası: {e}")
+                    self.employee_listbox.selection_clear(0, tb.END)
+                    self.employee_listbox.selection_set(i)
+                    self.employee_listbox.see(i)
+                
                 print(f"✅ DEBUG: {target_name} listbox-da seçildi")
                 break
         else:
@@ -2279,11 +2557,66 @@ class MainAppFrame(ttk.Frame):
             if clean_item == target_name:
                 logging.info(f"Listbox-da {target_name} tapıldı, index: {i}")
                 print(f"✅ DEBUG: Listbox-da {target_name} tapıldı, index: {i}")
-                self.employee_listbox.selection_clear(0, tb.END)
-                self.employee_listbox.selection_set(i)
-                self.employee_listbox.see(i)  # İşçini görünür et
+                
+                # Event'i geçici olaraq devre dışı bırak ki, selection_set() <<ListboxSelect>> event'ini tetiklemesin
+                try:
+                    self.employee_listbox.unbind("<<ListboxSelect>>")
+                    print(f"🔍 [DEBUG] _select_employee_after_expand: <<ListboxSelect>> event'i geçici olaraq kaldırıldı")
+                    
+                    # Scroll pozisyonunu saxla
+                    scroll_pos_before = None
+                    try:
+                        scroll_pos_before = self.employee_listbox.index("@0,0")
+                        last_visible_before = self.employee_listbox.index("@0,{}".format(self.employee_listbox.winfo_height()))
+                        print(f"🔍 [DEBUG] show_employee_by_id: selection_set-dən ƏVVƏL scroll pozisyonu: first_visible={scroll_pos_before}, last_visible={last_visible_before}, target_idx={i}, görünür={scroll_pos_before <= i <= last_visible_before}")
+                    except:
+                        pass
+                    
+                    self.employee_listbox.selection_clear(0, tb.END)
+                    self.employee_listbox.selection_set(i)
+                    
+                    # Seçim görünür deyilsə, scroll et
+                    try:
+                        first_visible_after = self.employee_listbox.index("@0,0")
+                        last_visible_after = self.employee_listbox.index("@0,{}".format(self.employee_listbox.winfo_height()))
+                        print(f"🔍 [DEBUG] show_employee_by_id: selection_set-dən SONRA scroll pozisyonu: first_visible={first_visible_after}, last_visible={last_visible_after}")
+                        
+                        # Əgər seçim görünür deyilsə, scroll et
+                        if i < first_visible_after or i > last_visible_after:
+                            print(f"🔍 [DEBUG] show_employee_by_id: Seçim görünür deyil, see({i}) çağırılır")
+                            self.employee_listbox.see(i)
+                            try:
+                                first_visible_final = self.employee_listbox.index("@0,0")
+                                last_visible_final = self.employee_listbox.index("@0,{}".format(self.employee_listbox.winfo_height()))
+                                print(f"🔍 [DEBUG] show_employee_by_id: see({i}) sonrası scroll pozisyonu: first_visible={first_visible_final}, last_visible={last_visible_final}")
+                            except:
+                                pass
+                        else:
+                            print(f"🔍 [DEBUG] show_employee_by_id: Seçim artıq görünür, see() çağırılmadı")
+                            # Əgər Tkinter otomatik scroll etmişsə və seçim artıq görünürsə, scroll pozisyonunu geri qaytar
+                            if scroll_pos_before is not None and first_visible_after != scroll_pos_before:
+                                print(f"🔍 [DEBUG] show_employee_by_id: ⚠️ Tkinter otomatik scroll etdi! Əvvəl: {scroll_pos_before}, sonra: {first_visible_after}, geri qaytarılır...")
+                                self.employee_listbox.see(scroll_pos_before)
+                                try:
+                                    restored_first_visible = self.employee_listbox.index("@0,0")
+                                    print(f"🔍 [DEBUG] show_employee_by_id: ✅ Scroll pozisyonu geri qaytarıldı: {restored_first_visible}")
+                                except:
+                                    pass
+                    except Exception as e:
+                        print(f"🔍 [DEBUG] show_employee_by_id: Scroll kontrolü xətası: {e}")
+                        # Xəta halında sadəcə see() çağır
+                        self.employee_listbox.see(i)
+                    
+                    self.employee_listbox.bind("<<ListboxSelect>>", self.on_employee_select)
+                    print(f"🔍 [DEBUG] _select_employee_after_expand: <<ListboxSelect>> event'i geri qaytarıldı")
+                except Exception as e:
+                    print(f"❌ [DEBUG] _select_employee_after_expand event binding xətası: {e}")
+                    self.employee_listbox.selection_clear(0, tb.END)
+                    self.employee_listbox.selection_set(i)
+                    self.employee_listbox.see(i)
+                
                 print(f"✅ DEBUG: {target_name} listbox-da seçildi")
-                # İşçi seçildikdə on_employee_select çağır
+                # İşçi seçildikdə on_employee_select çağır (event=None ilə, çünkü programatik çağırışdır)
                 self.on_employee_select(None)
                 return
         
@@ -2318,21 +2651,25 @@ class MainAppFrame(ttk.Frame):
             logging.info("Versiya yoxlaması artıq edilib")
         
         # Cari görünüşü saxlayırıq - thread-dən əvvəl müəyyən et
-        current_view = None
-        try:
-            for view_name, view_frame in self.views.items():
-                if hasattr(view_frame, 'winfo_viewable') and view_frame.winfo_viewable():
-                    current_view = view_name
-                    break
-        except:
-            pass
+        # Əvvəlcə self.current_view-i yoxla (show_view tərəfindən təyin olunub)
+        current_view = getattr(self, 'current_view', None)
         
-        # Əgər current_view tapılmadısa, default olaraq 'dashboard' qəbul et
+        # Əgər self.current_view yoxdursa və ya load_full_data=True deyilsə, winfo_viewable() ilə yoxla
+        if current_view is None or (not load_full_data and current_view == 'dashboard'):
+            try:
+                for view_name, view_frame in self.views.items():
+                    if hasattr(view_frame, 'winfo_viewable') and view_frame.winfo_viewable():
+                        current_view = view_name
+                        break
+            except:
+                pass
+        
+        # Əgər current_view hələ də tapılmadısa, default olaraq 'dashboard' qəbul et
         if current_view is None:
             current_view = 'dashboard'
             print(f"🔵 [DEBUG] current_view None idi, default 'dashboard' təyin edildi")
         
-        print(f"🔵 [DEBUG] load_and_refresh_data: current_view={current_view}, load_full_data={load_full_data}")
+        print(f"🔵 [DEBUG] load_and_refresh_data: current_view={current_view}, load_full_data={load_full_data}, self.current_view={getattr(self, 'current_view', None)}")
         
         if not selection_to_keep and hasattr(self, 'employee_listbox') and self.employee_listbox.curselection():
             _, selection_to_keep = self.get_selected_employee_name()
@@ -2350,19 +2687,30 @@ class MainAppFrame(ttk.Frame):
             logging.info(f"🔵 [DEBUG] load_data_async thread başladı")
             try:
                 # Thread-də də current_view-i yenidən yoxla (views yaradıla bilər)
-                thread_current_view = current_view
-                try:
-                    for view_name, view_frame in self.views.items():
-                        if hasattr(view_frame, 'winfo_viewable') and view_frame.winfo_viewable():
-                            thread_current_view = view_name
-                            break
-                except:
-                    pass
+                # Əvvəlcə self.current_view-i yoxla (show_view tərəfindən təyin olunub)
+                thread_current_view = getattr(self, 'current_view', None) or current_view
+                
+                # Əgər load_full_data=True olduqsa, self.current_view-i istifadə et (show_view tərəfindən təyin olunub)
+                if not load_full_data:
+                    try:
+                        for view_name, view_frame in self.views.items():
+                            if hasattr(view_frame, 'winfo_viewable') and view_frame.winfo_viewable():
+                                thread_current_view = view_name
+                                break
+                    except:
+                        pass
                 
                 if thread_current_view is None:
                     thread_current_view = 'dashboard'
                 
                 print(f"🔵 [DEBUG] Thread-də current_view={thread_current_view}, load_full_data={load_full_data}")
+                
+                # Əgər load_full_data=True olduqsa, dərhal tam məlumatları yüklə (vacation məlumatları ilə)
+                if load_full_data:
+                    print(f"🔵 [DEBUG] Tam məlumatlar yüklənir (load_full_data=True)...")
+                    logging.info("Tam məlumatlar yüklənir (load_full_data=True)...")
+                    self._load_full_data_async(selection_to_keep)
+                    return  # Thread-də bloklanmamaq üçün dərhal return et
                 
                 # Lazy loading: Yalnız lazım olan məlumatları yüklə
                 if not load_full_data:
@@ -2446,11 +2794,6 @@ class MainAppFrame(ttk.Frame):
                         print(f"🔵 [DEBUG] Digər görünüş üçün tam məlumatlar yüklənir: {thread_current_view}")
                         logging.info(f"{thread_current_view} görünüşü üçün tam məlumatlar yüklənir...")
                         self._load_full_data_async(selection_to_keep)
-                else:
-                    # Tam məlumatları yüklə - asinxron
-                    print(f"🔵 [DEBUG] Tam məlumatlar yüklənir (load_full_data=True)...")
-                    logging.info("Tam məlumatlar yüklənir...")
-                    self._load_full_data_async(selection_to_keep)
                 
                 # User üçün də məlumatların yükləndiyini yoxla
                 if not self.data and not self.is_admin:
@@ -2802,6 +3145,12 @@ class MainAppFrame(ttk.Frame):
         """İşçi siyahısını yeniləyir - asinxron batch processing ilə UI bloklanmır"""
         import time
         import threading
+        import traceback
+        
+        # Debug: Çağırılan yeri tap
+        caller_stack = ''.join(traceback.format_stack()[-3:-1])
+        print(f"🔍 [DEBUG] refresh_employee_list çağırıldı: selection_to_keep={selection_to_keep}")
+        print(f"🔍 [DEBUG] Çağırılan yer:\n{caller_stack}")
         
         # Əgər artıq refresh işləyirsə, gözlə
         if hasattr(self, '_refresh_in_progress') and self._refresh_in_progress:
@@ -2819,6 +3168,44 @@ class MainAppFrame(ttk.Frame):
             print(f"⚠️ [DEBUG] [UI THREAD] ⏱️ refresh_employee_list: employee_listbox tapılmadı!")
             logging.warning("employee_listbox tapılmadı!")
             return
+        
+        # Scroll pozisyonunu logla və saxla (listbox təmizlənmədən əvvəl)
+        scroll_pos_to_preserve = None
+        try:
+            if hasattr(self, 'employee_listbox'):
+                try:
+                    first_visible_before = self.employee_listbox.index("@0,0")
+                    last_visible_before = self.employee_listbox.index("@0,{}".format(self.employee_listbox.winfo_height()))
+                    scroll_pos_to_preserve = first_visible_before
+                    print(f"🔍 [DEBUG] refresh_employee_list BAŞLAMADAN ƏVVƏL: scroll pozisyonu: first_visible={first_visible_before}, last_visible={last_visible_before}, scroll_pos_to_preserve={scroll_pos_to_preserve}")
+                except Exception as e:
+                    print(f"🔍 [DEBUG] refresh_employee_list BAŞLAMADAN ƏVVƏL: scroll pozisyonu alına bilmədi: {e}")
+        except Exception as e:
+            print(f"🔍 [DEBUG] refresh_employee_list BAŞLAMADAN ƏVVƏL: scroll pozisyonu xətası: {e}")
+        
+        # Cari seçimi saxla (listbox təmizlənmədən əvvəl)
+        current_selection_name = None
+        current_idx_before = None
+        if not selection_to_keep:
+            try:
+                current_selection = self.employee_listbox.curselection()
+                if current_selection:
+                    current_idx_before = current_selection[0]
+                    current_item_text = self.employee_listbox.get(current_idx_before)
+                    # İşçi adını çıxar (● və ya ○ işarələrini və digər məlumatları sil)
+                    current_selection_name = current_item_text.replace("● ", "").replace("○ ", "").split(" [")[0].split(" (")[0].strip()
+                    print(f"🔍 [DEBUG] Cari seçim tapıldı (listbox təmizlənmədən əvvəl): index={current_idx_before}, name={current_selection_name}, item_text={current_item_text[:50]}")
+            except Exception as e:
+                print(f"🔍 [DEBUG] Cari seçimi alma xətası: {e}")
+                import traceback
+                print(f"🔍 [DEBUG] Cari seçimi alma xəta traceback:\n{traceback.format_exc()}")
+        
+        # Əgər selection_to_keep None idisə və cari seçim varsa, onu istifadə et
+        if not selection_to_keep and current_selection_name:
+            selection_to_keep = current_selection_name
+            print(f"🔍 [DEBUG] selection_to_keep None idi, cari seçim istifadə edildi: {selection_to_keep}")
+        
+        print(f"🔍 [DEBUG] refresh_employee_list: selection_to_keep={selection_to_keep}, current_idx_before={current_idx_before}")
         
         delete_start = time.time()
         print(f"🔵 [DEBUG] [UI THREAD] ⏱️ listbox.delete çağırılır...")
@@ -2987,27 +3374,153 @@ class MainAppFrame(ttk.Frame):
                     restore_start = time.time()
                     if hasattr(self, 'employee_listbox'):
                         restored_idx = -1
-                        for idx, (_, _, _, _, name) in enumerate(self._refresh_items):
-                            if name == self._refresh_selection_to_keep:
-                                restored_idx = idx
-                                break
+                        restored_name = None
+                        
+                        print(f"🔍 [DEBUG] [UI THREAD] Seçim bərpa prosesi başladı: selection_to_keep={self._refresh_selection_to_keep}, total_items={len(self._refresh_items)}")
+                        
+                        # Əgər selection_to_keep None deyilsə, onu tap
+                        if self._refresh_selection_to_keep:
+                            print(f"🔍 [DEBUG] [UI THREAD] selection_to_keep axtarılır: '{self._refresh_selection_to_keep}'")
+                            for idx, (_, _, _, _, name) in enumerate(self._refresh_items):
+                                if name == self._refresh_selection_to_keep:
+                                    restored_idx = idx
+                                    restored_name = name
+                                    print(f"🔍 [DEBUG] selection_to_keep tapıldı: name={name}, index={idx}")
+                                    break
+                            if restored_idx == -1:
+                                print(f"🔍 [DEBUG] [UI THREAD] ⚠️ selection_to_keep tapılmadı: '{self._refresh_selection_to_keep}'")
+                                # İlk 5 item-in adlarını göster
+                                print(f"🔍 [DEBUG] [UI THREAD] İlk 5 item: {[(idx, name) for idx, (_, _, _, _, name) in enumerate(self._refresh_items[:5])]}")
+                        else:
+                            print(f"🔍 [DEBUG] [UI THREAD] selection_to_keep None, seçim bərpa edilməyəcək")
+                        # selection_to_keep artıq refresh_employee_list başında təyin olunub (cari seçimdən)
+                        # Burada yalnız selection_to_keep varsa onu tapırıq
                         
                         if restored_idx != -1:
                             sel_start = time.time()
-                            print(f"🔵 [DEBUG] [UI THREAD] ⏱️ Seçim bərpa edilir: index={restored_idx}")
-                            self.employee_listbox.selection_set(restored_idx)
-                            sel_time1 = time.time() - sel_start
-                            print(f"🔵 [DEBUG] [UI THREAD] ⏱️ selection_set bitdi: {sel_time1:.3f}s")
+                            print(f"🔵 [DEBUG] [UI THREAD] ⏱️ Seçim bərpa edilir: index={restored_idx}, name={restored_name}, selection_to_keep={self._refresh_selection_to_keep}")
                             
-                            sel_start = time.time()
-                            self.employee_listbox.activate(restored_idx)
-                            sel_time2 = time.time() - sel_start
-                            print(f"🔵 [DEBUG] [UI THREAD] ⏱️ activate bitdi: {sel_time2:.3f}s")
+                            # Event'i geçici olaraq devre dışı bırak ki, selection_set() <<ListboxSelect>> event'ini tetiklemesin
+                            # Bu, otomatik gezinməyə səbəb olan döngünü qırır
+                            try:
+                                # Scroll pozisyonunu selection_set-dən əvvəl saxla
+                                scroll_pos_before = None
+                                try:
+                                    scroll_pos_before = self.employee_listbox.index("@0,0")
+                                    print(f"🔍 [DEBUG] [UI THREAD] selection_set-dən ƏVVƏL scroll pozisyonu: first_visible={scroll_pos_before}")
+                                except:
+                                    pass
+                                
+                                # Event binding'i geçici olaraq kaldır
+                                self.employee_listbox.unbind("<<ListboxSelect>>")
+                                print(f"🔍 [DEBUG] <<ListboxSelect>> event'i geçici olaraq kaldırıldı (restore üçün)")
+                                
+                                # Seçimin görünür olub olmadığını selection_set-dən ƏVVƏL yoxla
+                                first_visible_before_set = None
+                                last_visible_before_set = None
+                                try:
+                                    first_visible_before_set = self.employee_listbox.index("@0,0")
+                                    last_visible_before_set = self.employee_listbox.index("@0,{}".format(self.employee_listbox.winfo_height()))
+                                    print(f"🔍 [DEBUG] [UI THREAD] selection_set-dən ƏVVƏL görünürlük: restored_idx={restored_idx}, first_visible={first_visible_before_set}, last_visible={last_visible_before_set}, görünür={first_visible_before_set <= restored_idx <= last_visible_before_set}")
+                                except Exception as e:
+                                    print(f"🔍 [DEBUG] [UI THREAD] selection_set-dən ƏVVƏL görünürlük xətası: {e}")
+                                
+                                self.employee_listbox.selection_set(restored_idx)
+                                sel_time1 = time.time() - sel_start
+                                print(f"🔵 [DEBUG] [UI THREAD] ⏱️ selection_set bitdi: {sel_time1:.3f}s, index={restored_idx}")
+                                
+                                # selection_set-dən SONRA scroll pozisyonunu yoxla (Tkinter otomatik scroll edib edilmədiyini görmək üçün)
+                                try:
+                                    first_visible_after_set = self.employee_listbox.index("@0,0")
+                                    last_visible_after_set = self.employee_listbox.index("@0,{}".format(self.employee_listbox.winfo_height()))
+                                    print(f"🔍 [DEBUG] [UI THREAD] selection_set-dən SONRA scroll pozisyonu: first_visible={first_visible_after_set}, last_visible={last_visible_after_set}")
+                                    
+                                    # Əgər Tkinter otomatik scroll etmişsə və seçim artıq görünürsə, scroll pozisyonunu geri qaytar
+                                    if scroll_pos_before is not None and first_visible_before_set is not None:
+                                        if first_visible_before_set <= restored_idx <= last_visible_before_set:
+                                            # Seçim əvvəldən görünürdü, scroll pozisyonu dəyişməməlidir
+                                            if first_visible_after_set != first_visible_before_set:
+                                                print(f"🔍 [DEBUG] [UI THREAD] ⚠️ Tkinter otomatik scroll etdi! Əvvəl: {first_visible_before_set}, sonra: {first_visible_after_set}, geri qaytarılır...")
+                                                self.employee_listbox.see(scroll_pos_before)
+                                                try:
+                                                    first_visible_restored = self.employee_listbox.index("@0,0")
+                                                    print(f"🔍 [DEBUG] [UI THREAD] ✅ Scroll pozisyonu geri qaytarıldı: {first_visible_restored}")
+                                                except:
+                                                    pass
+                                            else:
+                                                print(f"🔍 [DEBUG] [UI THREAD] ✅ Scroll pozisyonu dəyişmədi (gözlənilən)")
+                                except Exception as e:
+                                    print(f"🔍 [DEBUG] [UI THREAD] selection_set-dən SONRA scroll pozisyonu xətası: {e}")
+                                
+                                # Event binding'i geri qaytar
+                                self.employee_listbox.bind("<<ListboxSelect>>", self.on_employee_select)
+                                print(f"🔍 [DEBUG] <<ListboxSelect>> event'i geri qaytarıldı (restore üçün)")
+                                
+                                # Scroll pozisyonunu yalnız seçim görünür deyilsə dəyişdir
+                                # Bu, kullanıcı manuel scroll yaptığında pozisyonu korur
+                                try:
+                                    # Seçimin görünür olub olmadığını yoxla
+                                    first_visible = self.employee_listbox.index("@0,0")
+                                    last_visible = self.employee_listbox.index("@0,{}".format(self.employee_listbox.winfo_height()))
+                                    listbox_height = self.employee_listbox.winfo_height()
+                                    total_items = self.employee_listbox.size()
+                                    
+                                    print(f"🔍 [DEBUG] [UI THREAD] Scroll kontrolü (final): restored_idx={restored_idx}, first_visible={first_visible}, last_visible={last_visible}, listbox_height={listbox_height}, total_items={total_items}, scroll_pos_to_preserve={scroll_pos_to_preserve}")
+                                    
+                                    # Seçim görünür deyilsə, scroll et
+                                    if restored_idx < first_visible or restored_idx > last_visible:
+                                        print(f"🔍 [DEBUG] [UI THREAD] ⚠️ Seçim görünür deyil, scroll ediləcək: restored_idx={restored_idx}, first_visible={first_visible}, last_visible={last_visible}")
+                                        sel_start2 = time.time()
+                                        self.employee_listbox.see(restored_idx)
+                                        sel_time3 = time.time() - sel_start2
+                                        
+                                        # Scroll sonrası pozisyonu yoxla
+                                        try:
+                                            first_visible_after = self.employee_listbox.index("@0,0")
+                                            last_visible_after = self.employee_listbox.index("@0,{}".format(self.employee_listbox.winfo_height()))
+                                            print(f"🔵 [DEBUG] [UI THREAD] ⏱️ see bitdi (scroll edildi): {sel_time3:.3f}s, restored_idx={restored_idx}, scroll sonrası: first_visible={first_visible_after}, last_visible={last_visible_after}")
+                                        except:
+                                            print(f"🔵 [DEBUG] [UI THREAD] ⏱️ see bitdi (scroll edildi): {sel_time3:.3f}s, restored_idx={restored_idx}")
+                                    else:
+                                        print(f"🔵 [DEBUG] [UI THREAD] ✅ Seçim artıq görünür, scroll edilmədi: restored_idx={restored_idx}, first_visible={first_visible}, last_visible={last_visible}")
+                                        
+                                        # Əgər scroll pozisyonu dəyişibsə və seçim görünürsə, scroll pozisyonunu geri qaytar
+                                        if scroll_pos_to_preserve is not None and first_visible != scroll_pos_to_preserve:
+                                            print(f"🔍 [DEBUG] [UI THREAD] ⚠️ Scroll pozisyonu dəyişib! Əvvəl: {scroll_pos_to_preserve}, indi: {first_visible}, geri qaytarılır...")
+                                            try:
+                                                self.employee_listbox.see(scroll_pos_to_preserve)
+                                                restored_first_visible = self.employee_listbox.index("@0,0")
+                                                print(f"🔍 [DEBUG] [UI THREAD] ✅ Scroll pozisyonu geri qaytarıldı: {restored_first_visible}")
+                                            except Exception as e:
+                                                print(f"🔍 [DEBUG] [UI THREAD] Scroll pozisyonu geri qaytarma xətası: {e}")
+                                except Exception as e:
+                                    # Xəta halında scroll etmə (otomatik gezinməyə səbəb olmasın)
+                                    import traceback
+                                    print(f"🔍 [DEBUG] Scroll kontrolü xətası: {e}, scroll edilmədi")
+                                    print(f"🔍 [DEBUG] Scroll kontrolü xəta traceback:\n{traceback.format_exc()}")
+                                    
+                            except Exception as e:
+                                print(f"❌ [DEBUG] Event binding xətası: {e}")
+                                import traceback
+                                print(f"❌ [DEBUG] Event binding xəta traceback:\n{traceback.format_exc()}")
+                                # Xəta halında sadəcə selection_set et
+                                self.employee_listbox.selection_set(restored_idx)
+                                sel_time1 = time.time() - sel_start
+                                print(f"🔵 [DEBUG] [UI THREAD] ⏱️ selection_set bitdi (xəta halında): {sel_time1:.3f}s")
+                        else:
+                            print(f"🔍 [DEBUG] Seçim bərpa edilmədi: selection_to_keep={self._refresh_selection_to_keep}, restored_idx={restored_idx}")
+                            # Seçim yoxdursa, heç bir şey seçmə (otomatik gezinməyə səbəb olmasın)
+                            try:
+                                # Event'i geçici olaraq kaldır və seçimi təmizlə
+                                self.employee_listbox.unbind("<<ListboxSelect>>")
+                                self.employee_listbox.selection_clear(0, tb.END)
+                                self.employee_listbox.bind("<<ListboxSelect>>", self.on_employee_select)
+                                print(f"🔍 [DEBUG] Seçim təmizləndi (selection_to_keep=None)")
+                            except Exception as e:
+                                print(f"❌ [DEBUG] Seçim təmizləmə xətası: {e}")
                             
-                            sel_start = time.time()
-                            self.employee_listbox.see(restored_idx)
-                            sel_time3 = time.time() - sel_start
-                            print(f"🔵 [DEBUG] [UI THREAD] ⏱️ see bitdi: {sel_time3:.3f}s")
+                            # activate() çağrısını kaldırdıq - otomatik gezinməyə səbəb olur
+                            # selection_set() kifayətdir və otomatik gezinməyə səbəb olmur
                     
                     restore_time = time.time() - restore_start
                     print(f"🔵 [DEBUG] [UI THREAD] ⏱️ Seçim bərpa tamamlandı: {restore_time:.3f}s")
