@@ -91,13 +91,13 @@ def main():
     if result.returncode != 0:
         print("[INFO] Remote repository teyin edilmemis!")
         print("[INFO] Remote repository elave edilir...")
-        run_command("git remote add origin https://github.com/kral14/mezuniyyet.git", cwd=repo_path)
+        run_command("git remote add origin https://github.com/kral14/mezuniyyet-en-yeni.git", cwd=repo_path)
     else:
         remote_url = result.stdout.strip()
         print(f"[INFO] Movcud remote: {remote_url}")
-        if remote_url != "https://github.com/kral14/mezuniyyet.git":
+        if remote_url != "https://github.com/kral14/mezuniyyet-en-yeni.git":
             print("[INFO] Remote URL duzeldilir...")
-            run_command("git remote set-url origin https://github.com/kral14/mezuniyyet.git", cwd=repo_path)
+            run_command("git remote set-url origin https://github.com/kral14/mezuniyyet-en-yeni.git", cwd=repo_path)
     
     # Cari branch-i al
     result = run_command("git branch --show-current", cwd=repo_path)
@@ -168,7 +168,7 @@ def main():
     print("=" * 50)
     print("  [SUCCESS] Deploy tamamlandi!")
     print("=" * 50)
-    print(f"[INFO] Repository: https://github.com/kral14/mezuniyyet.git")
+    print(f"[INFO] Repository: https://github.com/kral14/mezuniyyet-en-yeni.git")
     print(f"[INFO] Branch: {current_branch}")
     print()
 
