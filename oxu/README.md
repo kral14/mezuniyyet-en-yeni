@@ -1,185 +1,42 @@
-# Məzuniyyət Sistemi v6.7 - Səliqəli Struktur
+# 📚 Sənədlər və Təlimatlar
 
-## 📋 Təsvir
+Bu papkada proqramla bağlı bütün sənədlər və təlimatlar saxlanılır.
 
-Məzuniyyət Sistemi - çoxlu şirkət dəstəyi olan, universal link sistemi ilə işləyən, tam funksional məzuniyyət idarəetmə tətbiqidir. **Yeni səliqəli struktur ilə təşkil edilib.**
+## 📁 Papka Strukturu
 
-## 🏗️ Yeni Fayl Strukturu
+### 📊 `analiz/` - Analiz və Optimallaşdırma Sənədləri
+- **PROGRAM_ANALIZ.md** - Proqramın dərin analizi, arxitektura və modul strukturu
+- **PERFORMANS_OPTIMALLASDIRMALARI.md** - Performans optimallaşdırmaları və nəticələr
+- **TAKVIM_OPTIMALLASDIRMALARI.md** - Təqvim yeniləmə optimallaşdırmaları
+- **REFRESH_EMPLOYEE_LIST_OPTIMALLASDIRMALARI.md** - İşçi siyahısı yeniləmə optimallaşdırmaları
 
-```
-mezuniyyet-sistemi/
-├── src/                          # Əsas mənbə kodları
-│   ├── core/                     # Əsas funksiyalar
-│   │   ├── main.py              # Əsas tətbiq
-│   │   └── tenant_manager.py    # Şirkət idarəetməsi
-│   ├── ui/                      # İstifadəçi interfeysi
-│   │   ├── auth.py              # Giriş/qeydiyyat
-│   │   ├── components.py        # UI komponentləri
-│   │   ├── vacation_tree.py     # Məzuniyyət ağacı
-│   │   └── ...                  # Digər UI faylları
-│   ├── database/                # Veritaban modulları
-│   │   ├── database.py          # Əsas veritaban
-│   │   ├── sqlite_db.py         # SQLite dəstəyi
-│   │   ├── manager.py           # Veritaban meneceri
-│   │   └── ...                  # Digər DB faylları
-│   ├── api/                     # API server
-│   │   ├── server.py            # FastAPI server
-│   │   └── client.py            # API client
-│   ├── utils/                   # Köməkçi funksiyalar
-│   │   ├── cache.py             # Cache idarəetməsi
-│   │   ├── updater.py           # Yeniləmə sistemi
-│   │   └── ...                  # Digər utility faylları
-│   ├── config/                  # Konfiqurasiya
-│   │   ├── version.txt          # Versiya məlumatı
-│   │   ├── version.txt          # Versiya məlumatı
-│   │   └── requirements.txt     # Tələb olunan kitabxanalar
-│   ├── tests/                   # Test faylları
-│   ├── build/                   # Build faylları
-│   ├── docs/                    # Sənədlər
-│   └── assets/                  # Resurslar
-│       └── icons/               # İkonlar
-├── main.py                      # Əsas başlatma faylı
-└── README.md                    # Bu fayl
-```
+### 🐛 `debug/` - Debug və Log Sənədləri
+- **LOG_ANALIZ.md** - Log analizi və problemlərin müəyyən edilməsi
+- **LOG_ANALIZ_XULASE.md** - Log analizinin xülasəsi
+- **DETALLI_DEBUG_LOGLARI.md** - Detallı debug logları və izləmə
 
-## ✨ Əsas Xüsusiyyətlər
+### ⚙️ `setup/` - Setup və Konfiqurasiya Sənədləri
+- **DOMAIN_SETUP_GUIDE.md** - Domen quraşdırma təlimatı
+- **FREENOM_DOMAIN_SETUP.md** - Freenom domen quraşdırma təlimatı
+- **MAILGUN_SETUP_GUIDE.md** - Mailgun quraşdırma təlimatı
+- **RESEND_SETUP_GUIDE.md** - Resend quraşdırma təlimatı
+- **RESEND_DOMAIN_SETUP.md** - Resend domen quraşdırma təlimatı
+- **RESEND_DOMAIN_SETUP_STEP_BY_STEP.md** - Resend domen quraşdırma addım-addım təlimatı
+- **ENVIRONMENT_SETUP.md** - Mühit quraşdırma təlimatı
 
-### 🔗 Universal Link Sistemi
-- Hər şirkət üçün unikal link yaradılır
-- Link ilə asan qoşulma
-- Unudulmuş linkləri tapmaq üçün axtarış sistemi
+### 📖 Digər Sənədlər
+- **STRUCTURE.md** - Proqram strukturu və modullar
+- **SECURITY_GUIDE.md** - Təhlükəsizlik təlimatları
+- **INSTALLATION_GUIDE.md** - Quraşdırma təlimatı
+- **GMAIL_SMTP_SETUP.md** - Gmail SMTP quraşdırma təlimatı
+- **PRINT_PREVIEW_SETUP.md** - Çap önizləmə quraşdırma təlimatı
+- **PRINT_PREVIEW_FIX_GUIDE.md** - Çap önizləmə düzəliş təlimatı
+- **EMAIL_SETUP_GUIDE.txt** - Email quraşdırma təlimatı
 
-### 🏢 Çoxlu Şirkət Dəstəyi
-- Hər şirkət öz veritabanı ilə işləyir
-- Mərkəzi server ilə idarəetmə
-- Şirkət məlumatlarının təhlükəsiz saxlanması
+## 🔍 İstifadə
 
-### 👥 İstifadəçi İdarəetməsi
-- Admin və adi istifadəçi rolları
-- Çoxlu sessiya dəstəyi
-- Giriş tarixçəsi
+Hər bir sənəd müəyyən bir mövzuya aid məlumatları ehtiva edir. Problemləri həll etmək və ya yeni funksionallıq əlavə etmək üçün müvafiq sənədlərə baxın.
 
-### 📅 Məzuniyyət İdarəetməsi
-- Məzuniyyət müraciətləri
-- Təsdiq/redd sistemi
-- Bildiriş sistemi
-- Arxivləmə
+## 📝 Qeyd
 
-### 🗄️ Çoxlu Veritaban Dəstəyi
-- PostgreSQL
-- MySQL
-- SQLite
-- SQL Server
-- Oracle
-
-## 🚀 Quraşdırma
-
-### Tələb olunan sistemlər
-- Python 3.8+
-- Windows 10/11
-
-### Kitabxanaların quraşdırılması
-```bash
-pip install -r src/config/requirements.txt
-```
-
-### Sistemin işə salınması
-```bash
-python main.py
-```
-
-## 🔧 Konfiqurasiya
-
-### Yeni Şirkət Qeydiyyatı
-1. Tətbiqi işə salın
-2. "Admin (Yeni Şirkət Yaradacağam)" seçin
-3. Şirkət adını və veritaban qoşulma sətrini daxil edin
-4. Universal link avtomatik yaradılacaq
-
-### Mövcud Şirkətə Qoşulma
-1. Tətbiqi işə salın
-2. "İstifadəçi (Mənə Verilən Linklə Qoşulacağam)" seçin
-3. Universal linki daxil edin
-
-### Unudulmuş Linki Tapmaq
-1. Tətbiqi işə salın
-2. "Admin (Unudulmuş Linki Tapacağam)" seçin
-3. Connection string və ya şirkət adı ilə axtarın
-
-## 🛠️ API Endpoint-ləri
-
-### Mərkəzi Server
-- `GET /health` - Server statusu
-- `POST /api/tenants/create` - Yeni şirkət yaratmaq
-- `GET /api/tenants/{tenant_id}` - Şirkət məlumatları
-- `GET /api/tenants/search/{company_name}` - Şirkət axtarışı
-- `GET /api/tenants/link/{connection_hash}` - Connection string ilə axtarış
-
-## 🔒 Təhlükəsizlik
-
-- Şifrələr bcrypt ilə hash edilir
-- Sessiya idarəetməsi
-- Connection string-lər təhlükəsiz saxlanılır
-- HTTPS qoşulması
-
-## 📊 Sistem Tələbləri
-
-### Minimum
-- RAM: 2GB
-- Disk: 100MB
-- İnternet qoşulması
-
-### Tövsiyə olunan
-- RAM: 4GB+
-- Disk: 500MB+
-- Sürətli internet qoşulması
-
-## 🐛 Problemlərin həlli
-
-### Veritabanı qoşulma xətası
-1. Connection string-i yoxlayın
-2. İnternet qoşulmasını yoxlayın
-3. Veritaban serverinin işlək olduğunu yoxlayın
-
-### Mərkəzi server xətası
-1. İnternet qoşulmasını yoxlayın
-2. Server statusunu yoxlayın: `https://mezuniyyet-serverim.onrender.com/health`
-
-### Tətbiq açılmır
-1. Python versiyasını yoxlayın (3.8+)
-2. Kitabxanaları yenidən quraşdırın: `pip install -r src/config/requirements.txt`
-
-## 📞 Dəstək
-
-Problemlər üçün:
-1. Log fayllarını yoxlayın
-2. Test scriptini işə salın: `python src/tests/test_system.py`
-3. Sistem tələblərini yoxlayın
-
-## 📝 Versiya Tarixçəsi
-
-### v6.7 (Cari) - Səliqəli Struktur
-- Yeni fayl strukturu
-- Modulyar təşkil
-- Daha yaxşı kod təşkili
-- Bütün xətalar düzəldilib
-
-### v6.4
-- Universal link sistemi
-- Çoxlu veritaban dəstəyi
-- Təkmilləşdirilmiş UI
-- Mərkəzi server inteqrasiyası
-
-### v6.3
-- Tenant idarəetmə sistemi
-- Relink funksiyası
-- Təkmilləşdirilmiş təhlükəsizlik
-
-### v6.2
-- Çoxlu sessiya dəstəyi
-- Giriş tarixçəsi
-- Bildiriş sistemi
-
----
-
-**Məzuniyyət Sistemi v6.7** - Professional məzuniyyət idarəetmə həlli (Səliqəli Struktur) 
+Sənədlər müntəzəm olaraq yenilənir. Ən son versiyaları üçün GitHub repository-ni yoxlayın.
