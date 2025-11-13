@@ -34,6 +34,8 @@ class DashboardCalendarFrame(ttk.Frame):
             "#A9DFBF", "#FAD7A0", "#AED6F1", "#F9E79F", "#D5A6BD"
         ]
         self.employee_colors = {}
+        # DÜZƏLİŞ: vacations atributunu başlanğıcda boş list kimi təyin et
+        self.vacations = []
 
         self.create_widgets()
         
@@ -68,51 +70,28 @@ class DashboardCalendarFrame(ttk.Frame):
         print("DEBUG: DashboardCalendarFrame create_widgets completed")
 
     def load_data(self):
-        """Məlumatları bazadan yükləyir və komponentləri yeniləyir."""
-        try:
-            import logging
-            logging.debug("load_data başladı")
-            all_vacations = database.get_all_active_vacations()
+        """Məlumatları bazadan yükləyir və komponentləri yeniləyir - ASİNXRON."""
+        import threading
+        import time
+        
+        load_start = time.time()
+        print(f"🟡 [DEBUG] [UI THREAD] ⏱️ dashboard.load_data BAŞLADI (UI thread-də)")
+        logging.debug("load_data başladı")
+        
+        # OPTİMALLAŞDIRMA: Database işlərini asinxron thread-də et - UI bloklanmasın
+        def load_in_thread():
+            thread_start = time.time()
+            thread_id = threading.current_thread().ident
+            thread_name = threading.current_thread().name
+            print(f"🟡 [DEBUG] ⏱️ dashboard.load_data THREAD BAŞLADI: Thread ID={thread_id}, Name={thread_name}")
             
-            # Təhlükəsizlik: Adi istifadəçi yalnız öz şöbəsinin məzuniyyətlərini görə bilər
-            if not self.is_admin:
-                # Cari istifadəçinin şöbəsini tap
-                current_user_department = None
-                try:
-                    from database import database as db
-                    conn = db.db_connect()
-                    if conn:
-                        with conn.cursor() as cur:
-                            cur.execute("SELECT department FROM employees WHERE id = %s", (self.current_user['id'],))
-                            result = cur.fetchone()
-                            if result:
-                                current_user_department = result[0]
-                        conn.close()
-                except Exception as e:
-                    logging.warning(f"İstifadəçi şöbəsi alına bilmədi: {e}")
+            try:
+                # Təhlükəsizlik: SQL sorğusunda birbaşa filtr tətbiq edilir
+                all_vacations = database.get_all_active_vacations(current_user=self.current_user)
+                print(f"🟡 [DEBUG] ⏱️ get_all_active_vacations bitdi: {time.time() - thread_start:.3f}s")
                 
-                # Yalnız eyni şöbədəki işçilərin məzuniyyətlərini göstər
-                if current_user_department:
-                    filtered_vacations = []
-                    for vac in all_vacations:
-                        # İşçinin şöbəsini tap
-                        try:
-                            conn = db.db_connect()
-                            if conn:
-                                with conn.cursor() as cur:
-                                    cur.execute("SELECT department FROM employees WHERE name = %s OR id = %s LIMIT 1", 
-                                              (vac.get('employee', ''), vac.get('employee_id', 0)))
-                                    result = cur.fetchone()
-                                    if result and result[0] == current_user_department:
-                                        filtered_vacations.append(vac)
-                                conn.close()
-                        except:
-                            pass
-                    self.vacations = filtered_vacations
-                else:
-                    self.vacations = []
-            else:
-                # Admin üçün bütün məzuniyyətlər (filtr varsa tətbiq edilir)
+                # Artıq SQL sorğusunda filtr tətbiq edildiyi üçün, yalnız admin üçün bütün məzuniyyətləri göstər
+                # User üçün yalnız eyni şöbədəki məzuniyyətlər artıq SQL-də filtr edilib
                 self.vacations = all_vacations
                 
                 # Filtr tətbiq et (əgər seçilibsə)
@@ -154,43 +133,88 @@ class DashboardCalendarFrame(ttk.Frame):
                         # Xəta baş verdikdə bütün məzuniyyətləri göstər
                         self.vacations = all_vacations
             
-            logging.debug(f"get_all_active_vacations nəticəsi: {self.vacations}")
-            logging.debug(f"self.vacations uzunluğu: {len(self.vacations)}")
-            # DÜZƏLİŞ: Məzuniyyət məlumatlarını düzgün emal edirik
-            for vacation in self.vacations:
-                # Tarixləri date obyektinə çeviririk
-                if isinstance(vacation['start_date'], str):
-                    vacation['start_date'] = datetime.strptime(vacation['start_date'], '%Y-%m-%d').date()
-                if isinstance(vacation['end_date'], str):
-                    vacation['end_date'] = datetime.strptime(vacation['end_date'], '%Y-%m-%d').date()
-            # DÜZƏLİŞ: employee_name də əlavə edirik
-            for vacation in self.vacations:
-                if 'employee' in vacation and 'employee_name' not in vacation:
-                    vacation['employee_name'] = vacation['employee']
-                # DÜZƏLİŞ: Məzuniyyət məlumatlarına status əlavə edirik ui_components uyğun format üçün
-                vacation['baslama'] = vacation['start_date']
-                vacation['bitme'] = vacation['end_date']
-            # DÜZƏLİŞ: İşçi rənglərini tooltip üçün saxlayırıq
-            unique_employees = sorted(list({vac['employee'] for vac in self.vacations}))
-            logging.debug(f"📋 Unikal işçilər tapıldı: {unique_employees}")
-            logging.debug(f"🎨 Mövcud rənglər: {self.colors}")
-            for i, emp in enumerate(unique_employees):
-                selected_color = self.colors[i % len(self.colors)]
-                self.employee_colors[emp] = selected_color
-                logging.debug(f"  🎨 {emp} → Rəng: {selected_color} (indeks: {i}, modul: {i % len(self.colors)})")
-            logging.debug(f"📊 İşçi rəngləri: {self.employee_colors}")
-            logging.debug("update_dashboard_data çağırılır")
-            self.update_dashboard_data()
-            logging.debug("update_calendar çağırılır")
-            # calendar_frame yaradılıbmışdırsa yenilə
-            if hasattr(self, 'calendar_frame') and self.calendar_frame.winfo_exists():
-                self.update_calendar()
-            logging.debug("load_data tamamlandı")
-        except Exception as e:
-            import traceback
-            error_details = traceback.format_exc()
-            logging.debug(f"Xəta detalları: {error_details}")
-            messagebox.showerror("Məlumat Yükləmə Xətası", f"Dashboard məlumatları yüklənərkən xəta baş verdi:\n{e}", parent=self)
+                logging.debug(f"get_all_active_vacations nəticəsi: {self.vacations}")
+                logging.debug(f"self.vacations uzunluğu: {len(self.vacations)}")
+                # DÜZƏLİŞ: Məzuniyyət məlumatlarını düzgün emal edirik
+                for vacation in self.vacations:
+                    # Tarixləri date obyektinə çeviririk
+                    if isinstance(vacation['start_date'], str):
+                        vacation['start_date'] = datetime.strptime(vacation['start_date'], '%Y-%m-%d').date()
+                    if isinstance(vacation['end_date'], str):
+                        vacation['end_date'] = datetime.strptime(vacation['end_date'], '%Y-%m-%d').date()
+                # DÜZƏLİŞ: employee_name də əlavə edirik
+                for vacation in self.vacations:
+                    if 'employee' in vacation and 'employee_name' not in vacation:
+                        vacation['employee_name'] = vacation['employee']
+                    # DÜZƏLİŞ: Məzuniyyət məlumatlarına status əlavə edirik ui_components uyğun format üçün
+                    vacation['baslama'] = vacation['start_date']
+                    vacation['bitme'] = vacation['end_date']
+                # DÜZƏLİŞ: İşçi rənglərini tooltip üçün saxlayırıq
+                unique_employees = sorted(list({vac['employee'] for vac in self.vacations}))
+                logging.debug(f"📋 Unikal işçilər tapıldı: {unique_employees}")
+                logging.debug(f"🎨 Mövcud rənglər: {self.colors}")
+                for i, emp in enumerate(unique_employees):
+                    selected_color = self.colors[i % len(self.colors)]
+                    self.employee_colors[emp] = selected_color
+                    logging.debug(f"  🎨 {emp} → Rəng: {selected_color} (indeks: {i}, modul: {i % len(self.colors)})")
+                logging.debug(f"📊 İşçi rəngləri: {self.employee_colors}")
+                
+                thread_time = time.time() - thread_start
+                print(f"🟡 [DEBUG] ⏱️ dashboard.load_data THREAD bitdi: {thread_time:.3f}s")
+                
+                # UI thread-də refresh et - thread-də bloklanmamaq üçün
+                def refresh_ui():
+                    try:
+                        ui_start = time.time()
+                        print(f"🟡 [DEBUG] [UI THREAD] ⏱️ dashboard.load_data UI refresh BAŞLADI")
+                        
+                        # OPTİMALLAŞDIRMA: Təqvim yeniləməsini asinxron et - UI bloklanmasın
+                        self.update_dashboard_data()
+                        # calendar_frame yaradılıbmışdırsa yenilə - asinxron
+                        if hasattr(self, 'calendar_frame') and self.calendar_frame.winfo_exists():
+                            # UI thread-də bloklanmamaq üçün after() istifadə et
+                            self.after(0, self.update_calendar)
+                        
+                        ui_time = time.time() - ui_start
+                        print(f"🟡 [DEBUG] [UI THREAD] ⏱️ dashboard.load_data UI refresh bitdi: {ui_time:.3f}s")
+                    except Exception as e:
+                        print(f"❌ [DEBUG] [UI THREAD] dashboard.load_data UI refresh xətası: {e}")
+                        import traceback
+                        print(f"❌ [DEBUG] [UI THREAD] dashboard.load_data UI refresh xəta traceback:\n{traceback.format_exc()}")
+                        messagebox.showerror("Məlumat Yükləmə Xətası", f"Dashboard UI yenilənərkən xəta baş verdi:\n{e}", parent=self)
+                
+                # UI thread-də çağır
+                root = self.winfo_toplevel()
+                if root and root.winfo_exists():
+                    root.after(0, refresh_ui)
+                else:
+                    self.after(0, refresh_ui)
+                    
+            except Exception as e:
+                thread_time = time.time() - thread_start
+                print(f"❌ [DEBUG] ⏱️ dashboard.load_data THREAD xətası: {e}, vaxt: {thread_time:.3f}s")
+                import traceback
+                error_details = traceback.format_exc()
+                print(f"❌ [DEBUG] dashboard.load_data THREAD xəta traceback:\n{error_details}")
+                logging.error(f"Dashboard load_data xətası: {e}", exc_info=True)
+                
+                # UI thread-də xəta mesajı göstər
+                def show_error():
+                    messagebox.showerror("Məlumat Yükləmə Xətası", f"Dashboard məlumatları yüklənərkən xəta baş verdi:\n{e}", parent=self)
+                
+                root = self.winfo_toplevel()
+                if root and root.winfo_exists():
+                    root.after(0, show_error)
+                else:
+                    self.after(0, show_error)
+        
+        # Asinxron thread-də yüklə - UI bloklanmasın
+        thread = threading.Thread(target=load_in_thread, daemon=True, name="DashboardDataLoader")
+        thread.start()
+        print(f"🟡 [DEBUG] [UI THREAD] ⏱️ dashboard.load_data thread başladıldı, ID: {thread.ident}")
+        
+        load_time = time.time() - load_start
+        print(f"🟡 [DEBUG] [UI THREAD] ⏱️ dashboard.load_data funksiyası bitdi: {load_time:.3f}s (thread başladıldı)")
 
     def create_dashboard_widgets(self, parent_frame):
         parent_frame.rowconfigure(0, weight=1)
@@ -306,19 +330,23 @@ class DashboardCalendarFrame(ttk.Frame):
 
 
     def update_calendar(self):
-        # ... (Bu funksiyada dəyişiklik yoxdur)
+        """Təqvim yeniləməsi - OPTİMALLAŞDIRILMIŞ VERSİYA"""
         import logging
-        logging.debug("=== update_calendar başladı ===")
+        import time
+        start_time = time.time()
         
         # calendar_frame yaradılıbmışdırsa davam et
         if not hasattr(self, 'calendar_frame') or not self.calendar_frame.winfo_exists():
             logging.warning("calendar_frame hələ yaradılmayıb, update_calendar atlanılır")
             return
         
-        logging.debug(f"📅 Cari ay: {self.current_date.month}/{self.current_date.year}")
-        logging.debug(f"📊 Mövcud məzuniyyətlər: {len(self.vacations)} ədəd")
-        for i, vac in enumerate(self.vacations):
-            logging.debug(f"  {i+1}. {vac['employee']}: {vac['start_date']} - {vac['end_date']}")
+        # OPTİMALLAŞDIRMA: vacations atributu hələ yaradılmayıbsa, gözlə
+        if not hasattr(self, 'vacations'):
+            logging.debug(f"=== update_calendar: vacations hələ yüklənməyib, gözləyirəm... ===")
+            return
+        
+        # OPTİMALLAŞDIRMA: Yalnız vacib loglar
+        logging.debug(f"=== update_calendar başladı: {self.current_date.month}/{self.current_date.year}, {len(self.vacations)} məzuniyyət ===")
         
         for widget in self.calendar_frame.winfo_children(): widget.destroy()
         month_names_az = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "İyun", "İyul", "Avqust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"]
@@ -331,13 +359,32 @@ class DashboardCalendarFrame(ttk.Frame):
             self.calendar_frame.grid_rowconfigure(i, weight=1, uniform="week_row")
         month_calendar = calendar.monthcalendar(self.current_date.year, self.current_date.month)
         today = date.today()
-        logging.debug(f"📅 Bugün: {today}")
+        
+        # OPTİMALLAŞDIRMA: Bütün günləri bir dəfəyə hesabla - batch processing
+        # Bütün günləri və onların məzuniyyətlərini bir dəfəyə hesabla
+        vacations_by_day = {}
+        for week in month_calendar:
+            for day_val in week:
+                if day_val == 0:
+                    continue
+                day_date = date(self.current_date.year, self.current_date.month, day_val)
+                # Bütün məzuniyyətləri bir dəfəyə filter et
+                vacations_on_this_day = [
+                    v for v in self.vacations 
+                    if v.get('start_date') and v.get('end_date') 
+                    and v['start_date'] <= day_date <= v['end_date']
+                ]
+                vacations_by_day[day_date] = vacations_on_this_day
+        # OPTİMALLAŞDIRMA: Bütün günləri bir dəfəyə render et - batch processing
         for week_num, week in enumerate(month_calendar, 1):
             for day_num_idx, day_val in enumerate(week):
-                if day_val == 0: continue
+                if day_val == 0: 
+                    continue
                 day_date = date(self.current_date.year, self.current_date.month, day_val)
-                # Debug mesajlarını azaldıq - yalnız xəta halında log yazırıq
-                # logging.debug(f"📆 Gün analiz edilir: {day_date}")
+                
+                # OPTİMALLAŞDIRMA: Vacations artıq hesablanıb - cache-dən götür
+                vacations_on_this_day = vacations_by_day.get(day_date, [])
+                
                 frame_config = {'relief': 'solid', 'borderwidth': 1}
                 is_weekend = day_num_idx >= 5
                 is_today = (day_date == today)
@@ -350,39 +397,26 @@ class DashboardCalendarFrame(ttk.Frame):
                 else:
                     frame_config['bg'] = 'white'
                 day_frame = tk.Frame(self.calendar_frame, **frame_config)
-                # Gün widget-inə vacation_date atributu əlavə et
                 day_frame.vacation_date = day_date
                 try:
                     day_frame.grid(row=week_num, column=day_num_idx, sticky='nsew')
                     day_frame.grid_propagate(False)
-                    # Day frame-in minimum ölçüsünü təyin edirik
                     day_frame.configure(width=100, height=80)
-                    # Grid konfiqurasiyasını düzəldirik
                     self.calendar_frame.grid_columnconfigure(day_num_idx, weight=1)
                     self.calendar_frame.grid_rowconfigure(week_num, weight=1)
-                    # Debug mesajlarını azaldıq - yalnız xəta halında log yazırıq
-                    # logging.debug(f"  🏠 Day frame yaradıldı: {week_num}x{day_num_idx}")
-                    # logging.debug(f"  📐 Day frame konfiqurasiyası: {frame_config}")
-                    # Day frame-in ölçüsünü yoxlayırıq
-                    day_width = day_frame.winfo_reqwidth()
-                    day_height = day_frame.winfo_reqheight()
-                    # logging.debug(f"  📏 Day frame ölçüsü: {day_width}x{day_height}")
                 except tk.TclError as e:
-                    logging.debug(f"Day frame yaradılma xətası (təhlükəsiz): {e}")
+                    logging.debug(f"Day frame yaradılma xətası: {e}")
                     continue
                 day_label = tk.Label(day_frame, text=str(day_val), font=(self.main_font, 9), anchor='ne', padx=4, pady=1)
                 try:
                     day_label.place(relx=1.0, rely=0.0, anchor='ne')
                 except tk.TclError as e:
-                    logging.debug(f"Day label yerləşdirmə xətası (təhlükəsiz): {e}")
-                # Yeni: Hər gün üçün məzuniyyətdə olan işçiləri tapırıq
-                vacations_on_this_day = [v for v in self.vacations if v.get('start_date') and v.get('end_date') and v['start_date'] <= day_date <= v['end_date']]
-                logging.debug(f"{day_date} üçün vacations_on_this_day: {vacations_on_this_day}")
+                    logging.debug(f"Day label yerləşdirmə xətası: {e}")
+                
+                # OPTİMALLAŞDIRMA: Log mesajlarını azalt - yalnız vacib məlumatları logla
                 if not vacations_on_this_day:
                     day_label.config(bg=frame_config['bg'])
-                    logging.debug(f"  ⚪ {day_date} üçün məzuniyyət yoxdur")
                 else:
-                    logging.debug(f"  🎯 {day_date} üçün {len(vacations_on_this_day)} məzuniyyət tapıldı")
                     # Kvadratlar üçün grid ölçüsünü təyin edirik
                     num_vac = len(vacations_on_this_day)
                     grid_size = 1
@@ -390,26 +424,16 @@ class DashboardCalendarFrame(ttk.Frame):
                         grid_size = 3
                     elif num_vac > 2:
                         grid_size = 2
-                    logging.debug(f"  📐 Grid ölçüsü: {grid_size}x{grid_size}")
+                    
                     # Kvadratları yerləşdiririk
                     for i, vac in enumerate(vacations_on_this_day):
-                        # Yeni məntiq: hər gün üçün statusu yoxla
-                        logging.debug(f"=== {day_date} üçün {vac['employee']} məzuniyyəti analiz edilir ===")
-                        logging.debug(f"  Məzuniyyət başlama: {vac['start_date']}")
-                        logging.debug(f"  Məzuniyyət bitmə: {vac['end_date']}")
-                        logging.debug(f"  Cari gün: {day_date}")
-                        
+                        # OPTİMALLAŞDIRMA: Rəng hesablaması - log yoxdur
                         if day_date > vac['end_date']:
                             color = self.status_colors['red']  # Bitmiş
-                            logging.debug(f"  🔴 Status: BITMİŞ → Rəng: {color} (İşçi: {vac['employee']})")
                         elif vac['start_date'] <= day_date <= vac['end_date']:
                             color = self.employee_colors.get(vac['employee'], self.status_colors['gray'])  # Aktiv
-                            logging.debug(f"  ✅ Status: AKTİV → Rəng: {color} (İşçi: {vac['employee']})")
                         else:
                             color = self.status_colors['gray']  # Planlaşdırılan
-                            logging.debug(f"  ⚪ Status: PLANLAŞDIRILAN → Rəng: {color} (İşçi: {vac['employee']})")
-                        
-                        logging.debug(f"  🎨 Final rəng təyin edildi: {color}")
                         
                         # Grid pozisiyasını hesablayırıq
                         row = i // grid_size
@@ -418,65 +442,45 @@ class DashboardCalendarFrame(ttk.Frame):
                         indicator = tk.Frame(day_frame, background=color, width=12, height=12, relief='ridge', borderwidth=1)
                         try:
                             indicator.grid(row=row, column=col, padx=1, pady=1, sticky='nsew')
-                            # Kvadratın rəngini yenidən təyin edirik
                             indicator.configure(background=color)
-                            # Grid konfiqurasiyasını düzəldirik
                             day_frame.grid_columnconfigure(col, weight=1)
                             day_frame.grid_rowconfigure(row, weight=1)
-                            logging.debug(f"  📦 Kvadrat yaradıldı: {row}x{col} pozisiyasında, rəng: {color}")
                         except tk.TclError as e:
-                            # Widget yaradılarkən xəta baş verərsə, ignore edirik
-                            logging.debug(f"Widget yaradılma xətası (təhlükəsiz): {e}")
+                            logging.debug(f"Widget yaradılma xətası: {e}")
                             continue
-                        # Kvadratın real rəngini yoxlayırıq
+                        
+                        # OPTİMALLAŞDIRMA: Rəng yoxlaması - yalnız xəta halında log
                         try:
                             actual_color = indicator.cget('background')
-                            logging.debug(f"  🔍 Kvadratın real rəngi: {actual_color}")
                             if actual_color != color:
-                                logging.debug(f"  ⚠️  Rəng uyğun deyil! Gözlənilən: {color}, Real: {actual_color}")
-                                # Yenidən cəhd edirik
                                 indicator.configure(background=color)
-                                logging.debug(f"  🔄 Rəng yenidən təyin edildi: {color}")
-                            else:
-                                logging.debug(f"  ✅ Rəng düzgün tətbiq olunub: {color}")
-                        except tk.TclError as e:
-                            logging.debug(f"Rəng yoxlama xətası (təhlükəsiz): {e}")
+                        except tk.TclError:
+                            pass
                         
-                        # Kvadratın ölçüsünü yoxlayırıq
+                        # OPTİMALLAŞDIRMA: Görünürlük yoxlaması - log yoxdur
                         try:
-                            width = indicator.winfo_reqwidth()
-                            height = indicator.winfo_reqheight()
-                            logging.debug(f"  📏 Kvadrat ölçüsü: {width}x{height}")
-                        except tk.TclError as e:
-                            logging.debug(f"Ölçü yoxlama xətası (təhlükəsiz): {e}")
-                        
-                        # Kvadratın görünürlüyünü yoxlayırıq
-                        try:
-                            visible = indicator.winfo_viewable()
-                            logging.debug(f"  👁️  Kvadrat görünür: {visible}")
-                            # Kvadratı məcburi göstəririk
                             indicator.lift()
-                            indicator.update()
-                        except tk.TclError as e:
-                            logging.debug(f"Görünürlük yoxlama xətası (təhlükəsiz): {e}")
+                        except tk.TclError:
+                            pass
                         # Tooltip
                         tooltip_text = f"{vac['employee']}\n{vac['start_date'].strftime('%d.%m.%Y')} - {vac['end_date'].strftime('%d.%m.%Y')}"
                         try:
                             Tooltip(indicator, tooltip_text, font_name=self.main_font)
-                        except Exception as e:
-                            # Tooltip yaradılarkən xəta baş verərsə, ignore edirik
-                            logging.debug(f"Tooltip yaradılma xətası (təhlükəsiz): {e}")
+                        except Exception:
+                            pass
                         handler = lambda e, v=vac: self.on_day_click(v)
                         try:
                             indicator.bind("<Button-1>", handler)
-                        except tk.TclError as e:
-                            # Widget artıq mövcud deyilsə, xətanı ignore edirik
-                            logging.debug(f"Button bind xətası (təhlükəsiz): {e}")
+                        except tk.TclError:
+                            pass
                     try:
                         day_label.lift()
-                    except tk.TclError as e:
-                        logging.debug(f"Day label lift xətası (təhlükəsiz): {e}")
-        logging.debug("=== update_calendar tamamlandı ===")
+                    except tk.TclError:
+                        pass
+        
+        # OPTİMALLAŞDIRMA: Performans ölçməsi
+        elapsed_time = time.time() - start_time
+        logging.debug(f"=== update_calendar tamamlandı: {elapsed_time:.3f}s ===")
 
     def on_day_click(self, vacation_info):
         """Günə klik edildikdə məzuniyyət məlumatlarını göstərir"""

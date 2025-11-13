@@ -157,8 +157,12 @@ class MainAppFrame(ttk.Frame):
         frame_init_duration = frame_init_end - frame_init_start
         print(f"⏱️ [STARTUP] MainAppFrame.__init__ tamamlandı: {frame_init_duration:.3f} saniyə")
         
-        # Lazy loading: load_full_data=False - yalnız dashboard üçün lazım olan məlumatları yüklə
-        self.after(500, lambda: self.load_and_refresh_data(load_full_data=False))
+        # OPTİMALLAŞDIRMA: Lazy loading - yalnız dashboard üçün lazım olan məlumatları yüklə
+        # User üçün daha tez yüklə - UI donmasın
+        # Dərhal başlat - asinxron olduğu üçün UI bloklanmayacaq
+        # Delay artırıldı - UI tam yüklənəndən sonra məlumat yükləmə başlasın
+        delay = 100 if not self.is_admin else 300
+        self.after(delay, lambda: self.load_and_refresh_data(load_full_data=False))
     
     def _safe_flush_stdout(self):
         """Təhlükəsiz sys.stdout.flush() - EXE-də sys.stdout None ola bilər"""
@@ -770,12 +774,12 @@ class MainAppFrame(ttk.Frame):
         self.content_container.pack(expand=True, fill='both')
         
         # Sol panel - genişləndirilmiş
-        self.left_frame = ttk.Frame(self.content_container, style="Sidebar.TFrame", width=350)
-        self.left_frame.pack(side="left", fill="y", anchor="n")
+        self.left_frame = ttk.Frame(self.content_container, style="Sidebar.TFrame", width=300)  # Eni azaldıldı (350-dən 300-ə)
+        self.left_frame.pack(side="left", fill="both", expand=False, padx=(5, 5))  # Sağ və sol 5px boşluq
         self.left_frame.pack_propagate(False)  # Genişliyi sabit saxla
         
         self.right_frame = ttk.Frame(self.content_container)
-        self.right_frame.pack(side="right", expand=True, fill="both")
+        self.right_frame.pack(side="right", expand=True, fill="both", padx=(5, 5))  # Sağ və sol 5px boşluq
 
         self.setup_left_panel()
         
@@ -1493,11 +1497,11 @@ class MainAppFrame(ttk.Frame):
 
         # Realtime status göstəricisi
         self.realtime_status_label = ttk.Label(self.left_frame, text="Realtime aktiv", style="Sidebar.TLabel", font=(self.main_font, 9))
-        self.realtime_status_label.pack(pady=(0, 10))
+        self.realtime_status_label.pack(pady=(0, 2))
         
         # Update status göstəricisi
         self.update_status_label = ttk.Label(self.left_frame, text="Sistem hazırdır", style="Sidebar.TLabel", font=(self.main_font, 9))
-        self.update_status_label.pack(pady=(0, 10))
+        self.update_status_label.pack(pady=(0, 2))
 
         if self.is_admin:
             # Admin düymələri navbar dropdown-dadır, burada yalnız işçilər paneli
@@ -1509,20 +1513,38 @@ class MainAppFrame(ttk.Frame):
         except:
             self.employee_frame_bg = '#ffffff'
         
-        employee_frame = tb.LabelFrame(self.left_frame, text="İşçilər", bootstyle="secondary")
-        employee_frame.pack(expand=True, fill='both', pady=(5, 5))
-        
         # Axtarış və filtr panelləri (başlanğıcda gizli)
         self.search_panel = None
         self.filter_panel = None
         
-        # Admin üçün icon düymələri və search/filter ikonları
+        # Admin üçün icon düymələri - frame-in üstündə
         try:
-            bg_color = employee_frame.cget('bg')
+            bg_color = self.left_frame.cget('bg')
         except:
             bg_color = '#ffffff'
-        administrative_button_frame = tk.Frame(employee_frame, bg=bg_color)
-        administrative_button_frame.pack(fill='x', pady=(5, 2), padx=5)
+        administrative_button_frame = tk.Frame(self.left_frame, bg=bg_color)
+        administrative_button_frame.pack(fill='x', pady=(0, 1), padx=5)  # Sağ və sol 5px boşluq
+        
+        # Frame-i ortalamaq üçün wrapper - listbox-u uzatmaq üçün expand=True
+        employee_wrapper = tk.Frame(self.left_frame, bg=bg_color)
+        employee_wrapper.pack(fill='both', expand=True, pady=(0, 2))   # expand=True - listbox-u uzatmaq üçün
+        
+        # Sol kiçik spacer - silindi, çünki sola sıxlaşdırmaq lazımdır
+        # left_frame_spacer = tk.Frame(employee_wrapper, bg=bg_color, width=2)
+        # left_frame_spacer.pack(side='left')
+
+        # İşçilər frame - daha gözəl görünüş üçün
+        employee_frame = tb.LabelFrame(employee_wrapper, text="İşçilər", bootstyle="secondary")
+        employee_frame.pack(side='left', fill='both', expand=True, padx=5)   # Sağ və sol 5px boşluq, expand=True
+        # Frame-in görünüşünü yaxşılaşdır
+        try:
+            employee_frame.configure(relief='flat', borderwidth=1)
+        except:
+            pass
+        
+        # Sağ spacer – silindi, çünki sola sıxlaşdırmaq lazımdır
+        # right_frame_spacer = tk.Frame(employee_wrapper, bg=bg_color, width=2)
+        # right_frame_spacer.pack(side='left')
         
         # Edit və Delete funksiyalarını import edək
         try:
@@ -1531,9 +1553,17 @@ class MainAppFrame(ttk.Frame):
         except:
             edit_form_available = False
             
-        # İkonları yan-yana yerləşdirmək üçün container
+        # İkonları ortalamaq üçün sol boş frame
+        left_spacer = tk.Frame(administrative_button_frame, bg=bg_color)
+        left_spacer.pack(side='left', expand=True, fill='x')
+        
+        # İkonları yan-yana yerləşdirmək üçün container - ortalanmış
         icon_container = tk.Frame(administrative_button_frame, bg=bg_color)
-        icon_container.pack(side='left', fill='x', expand=True)
+        icon_container.pack(side='left', expand=False, pady=2)  # Optimizasiya: boşluq azaldıldı
+        
+        # İkonları ortalamaq üçün sağ boş frame
+        right_spacer = tk.Frame(administrative_button_frame, bg=bg_color)
+        right_spacer.pack(side='left', expand=True, fill='x')
         
         # Axtarış və filtr ikonları - yalnız admin üçün
         if self.is_admin:
@@ -1868,17 +1898,46 @@ class MainAppFrame(ttk.Frame):
                     )
                     self.hide_employee_button.pack(side='left', padx=3, pady=3)
         
+        # Listbox frame - daha gözəl görünüş üçün
         listbox_frame = tb.Frame(employee_frame)
-        listbox_frame.pack(expand=True, fill='both', pady=5, padx=5)
+        listbox_frame.pack(expand=True, fill='both', pady=4, padx=4)  # Optimizasiya: boşluq azaldıldı
+        # Frame-in görünüşünü yaxşılaşdır
+        try:
+            listbox_frame.configure(relief='flat')
+        except:
+            pass
         
-        self.employee_listbox = tk.Listbox(listbox_frame, font=(self.main_font, 11), relief="flat", highlightthickness=1)
-        self.employee_listbox.config(highlightbackground = "#cccccc", highlightcolor= "#007bff")
-        # Scrollbar gizlədirilir
+        # Listbox-un görünüşünü yaxşılaşdır - daha modern və gözəl
+        self.employee_listbox = tk.Listbox(
+            listbox_frame, 
+            font=(self.main_font, 10),  # Font ölçüsü azaldıldı - daha kompakt
+            relief="flat", 
+            highlightthickness=0,  # Border gizlədirildi - daha təmiz görünüş
+            width=25,  # Eni azaldıldı (35-dən 25-ə)
+            height=25,  # Hündürlüyü artırıldı - daha uzun
+            bg='#ffffff',  # Ağ fon
+            fg='#333333',  # Tünd boz mətn
+            selectbackground='#e3f2fd',  # Açıq mavi seçim fonu
+            selectforeground='#1976d2',  # Mavi seçilmiş mətn
+            activestyle='none',  # Aktiv stil yoxdur - daha təmiz
+            borderwidth=0,  # Border yoxdur
+            highlightcolor='#007bff',  # Focus rəngi
+            cursor='hand2'  # Əl kursoru
+        )
+        # Scrollbar gizlədirildi
         # vsb = ttk.Scrollbar(listbox_frame, orient="vertical", command=self.employee_listbox.yview)
         # self.employee_listbox.configure(yscrollcommand=vsb.set)
-        # vsb.pack(side='right', fill='y')
+        # vsb.pack(side='right', fill='y', padx=(2, 0))
         self.employee_listbox.pack(side='left', expand=True, fill="both")
         self.employee_listbox.bind("<<ListboxSelect>>", self.on_employee_select)
+        
+        # Hover effekti üçün event binding
+        def on_enter_listbox(e):
+            self.employee_listbox.config(cursor='hand2')
+        def on_leave_listbox(e):
+            self.employee_listbox.config(cursor='')
+        self.employee_listbox.bind('<Enter>', on_enter_listbox)
+        self.employee_listbox.bind('<Leave>', on_leave_listbox)
         
         # Realtime status yeniləmə timer-i (realtime üçün əlavə edildi)
         self.update_realtime_status()
@@ -2017,11 +2076,24 @@ class MainAppFrame(ttk.Frame):
             print("DEBUG: Event widget employee_listbox deyil, çıxırıq.")
             return
         
-        # Əgər şöbə başlığı seçilibsə, heç nə etmə
+        # Əgər şöbə başlığı seçilibsə, aç/yığ
         if hasattr(self, 'employee_listbox') and self.employee_listbox.curselection():
             index = self.employee_listbox.curselection()[0]
             item_text = self.employee_listbox.get(index)
-            if "━━━" in item_text:
+            # Şöbə başlığı yoxlaması - ▶ və ya ▼ ilə başlayan
+            if item_text.strip().startswith("▶") or item_text.strip().startswith("▼"):
+                # Şöbə adını çıxar
+                dept_name = item_text.replace("▶", "").replace("▼", "").strip()
+                dept_name = dept_name.strip()
+                
+                # Şöbə görünürlüyünü dəyişdir
+                if dept_name in self.department_visibility:
+                    self.department_visibility[dept_name] = not self.department_visibility[dept_name]
+                else:
+                    self.department_visibility[dept_name] = True  # İlk dəfə açılır
+                
+                # List-i yenilə
+                self.refresh_employee_list()
                 return
             
         if not self.employee_listbox.curselection():
@@ -2127,13 +2199,15 @@ class MainAppFrame(ttk.Frame):
         # self.data = database.load_data_for_user(self.current_user)
         
         target_name = None
+        target_department = None
         logging.info(f"Data-dan employee_id {employee_id} axtarılır...")
         print(f"🔍 DEBUG: Data-dan employee_id {employee_id} axtarılır...")
         for name, data in self.data.items():
             if data.get('db_id') == employee_id:
                 target_name = name
-                logging.info(f"Tapılan target_name: {target_name}")
-                print(f"✅ DEBUG: Tapılan target_name: {target_name}")
+                target_department = data.get('department', 'Şöbə təyin edilməyib')
+                logging.info(f"Tapılan target_name: {target_name}, şöbə: {target_department}")
+                print(f"✅ DEBUG: Tapılan target_name: {target_name}, şöbə: {target_department}")
                 break
                 
         if not target_name:
@@ -2141,21 +2215,49 @@ class MainAppFrame(ttk.Frame):
             print(f"❌ DEBUG: employee_id {employee_id} üçün target_name tapılmadı")
             return
 
+        # Təhlükəsizlik: Şöbə məlumatını yoxla
+        if not target_department:
+            target_department = 'Şöbə təyin edilməyib'
+        
+        # Qrupu aç (əgər bağlıdırsa)
+        if not hasattr(self, 'department_visibility'):
+            self.department_visibility = {}
+        
+        # İşçinin şöbəsi bağlıdırsa, aç
+        if target_department in self.department_visibility:
+            if not self.department_visibility[target_department]:
+                logging.info(f"Şöbə '{target_department}' bağlıdır, açılır...")
+                print(f"🔓 DEBUG: Şöbə '{target_department}' bağlıdır, açılır...")
+                self.department_visibility[target_department] = True
+                # Listbox-u yenilə
+                self.refresh_employee_list()
+                # UI-nin yenilənməsi üçün qısa gecikmə
+                self.after(50, lambda: self._select_employee_after_expand(target_name))
+                return
+        else:
+            # Şöbə dictionary-də yoxdursa, əlavə et və aç
+            self.department_visibility[target_department] = True
+            self.refresh_employee_list()
+            self.after(50, lambda: self._select_employee_after_expand(target_name))
+            return
+
+        # Qrup artıq açıqdırsa, birbaşa işçini tap
         logging.info(f"Listbox-dan {target_name} axtarılır...")
         print(f"🔍 DEBUG: Listbox-dan {target_name} axtarılır...")
         listbox_items = self.employee_listbox.get(0, tb.END)
         for i, item in enumerate(listbox_items):
-            clean_item = item.replace("● ", "").split(" [")[0].split(" (")[0].strip()
+            clean_item = item.replace("● ", "").replace("○ ", "").split(" [")[0].split(" (")[0].strip()
             if clean_item == target_name:
                 logging.info(f"Listbox-da {target_name} tapıldı, index: {i}")
                 print(f"✅ DEBUG: Listbox-da {target_name} tapıldı, index: {i}")
                 self.employee_listbox.selection_clear(0, tb.END)
                 self.employee_listbox.selection_set(i)
+                self.employee_listbox.see(i)  # İşçini görünür et
                 print(f"✅ DEBUG: {target_name} listbox-da seçildi")
                 break
         else:
-            logging.warning(f"Listbox-da {target_name} tapılmadı")
-            print(f"⚠️ DEBUG: Listbox-da {target_name} tapılmadı")
+            logging.warning(f"Listbox-da {target_name} tapılmadı (qrup açıq olsa belə)")
+            print(f"⚠️ DEBUG: Listbox-da {target_name} tapılmadı (qrup açıq olsa belə)")
             return
 
         # İşçi seçildikdə on_employee_select çağır
@@ -2165,12 +2267,42 @@ class MainAppFrame(ttk.Frame):
         
         logging.info(f"=== show_employee_by_id bitdi ===")
         print(f"🏁 DEBUG: show_employee_by_id bitdi")
+    
+    def _select_employee_after_expand(self, target_name):
+        """Qrup açıldıqdan sonra işçini seç"""
+        logging.info(f"Qrup açıldıqdan sonra {target_name} seçilir...")
+        print(f"🔍 DEBUG: Qrup açıldıqdan sonra {target_name} seçilir...")
+        
+        listbox_items = self.employee_listbox.get(0, tb.END)
+        for i, item in enumerate(listbox_items):
+            clean_item = item.replace("● ", "").replace("○ ", "").split(" [")[0].split(" (")[0].strip()
+            if clean_item == target_name:
+                logging.info(f"Listbox-da {target_name} tapıldı, index: {i}")
+                print(f"✅ DEBUG: Listbox-da {target_name} tapıldı, index: {i}")
+                self.employee_listbox.selection_clear(0, tb.END)
+                self.employee_listbox.selection_set(i)
+                self.employee_listbox.see(i)  # İşçini görünür et
+                print(f"✅ DEBUG: {target_name} listbox-da seçildi")
+                # İşçi seçildikdə on_employee_select çağır
+                self.on_employee_select(None)
+                return
+        
+        logging.warning(f"Qrup açıldıqdan sonra da {target_name} tapılmadı")
+        print(f"⚠️ DEBUG: Qrup açıldıqdan sonra da {target_name} tapılmadı")
 
     def load_and_refresh_data(self, selection_to_keep=None, load_full_data=False):
         """
         Məlumatları yükləyir - lazy loading ilə optimallaşdırılıb
         load_full_data=True olduqda bütün məlumatları yükləyir, False olduqda yalnız cari görünüş üçün lazım olanları
+        Bütün yükləmə əməliyyatları asinxron şəkildə işləyir - UI bloklanmır
         """
+        import time
+        import threading
+        func_start = time.time()
+        thread_id = threading.current_thread().ident
+        thread_name = threading.current_thread().name
+        print(f"🟢 [DEBUG] ⏱️ load_and_refresh_data BAŞLADI: load_full_data={load_full_data}, selection_to_keep={selection_to_keep}")
+        print(f"🟢 [DEBUG] ⏱️ Thread ID: {thread_id}, Name: {thread_name}")
         logging.info(f"load_and_refresh_data başladı (load_full_data={load_full_data})")
         
         # Versiya yoxlamasını yalnız ilk dəfə işləyəndə edirik
@@ -2185,82 +2317,265 @@ class MainAppFrame(ttk.Frame):
         else:
             logging.info("Versiya yoxlaması artıq edilib")
         
-        # Cari görünüşü saxlayırıq
+        # Cari görünüşü saxlayırıq - thread-dən əvvəl müəyyən et
         current_view = None
-        for view_name, view_frame in self.views.items():
-            if view_frame.winfo_viewable():
-                current_view = view_name
-                break
+        try:
+            for view_name, view_frame in self.views.items():
+                if hasattr(view_frame, 'winfo_viewable') and view_frame.winfo_viewable():
+                    current_view = view_name
+                    break
+        except:
+            pass
+        
+        # Əgər current_view tapılmadısa, default olaraq 'dashboard' qəbul et
+        if current_view is None:
+            current_view = 'dashboard'
+            print(f"🔵 [DEBUG] current_view None idi, default 'dashboard' təyin edildi")
+        
+        print(f"🔵 [DEBUG] load_and_refresh_data: current_view={current_view}, load_full_data={load_full_data}")
         
         if not selection_to_keep and hasattr(self, 'employee_listbox') and self.employee_listbox.curselection():
             _, selection_to_keep = self.get_selected_employee_name()
         
-        # Lazy loading: Yalnız lazım olan məlumatları yüklə
-        if not load_full_data:
-            # İlk açılışda yalnız dashboard üçün lazım olan məlumatları yüklə
-            if current_view == 'dashboard':
-                logging.info("Dashboard görünüşü üçün yalnız lazım olan məlumatlar yüklənir...")
-                # Dashboard üçün yalnız işçi siyahısını yüklə (vacation məlumatları dashboard özü yükləyir)
+        # Bütün yükləmə əməliyyatlarını asinxron et - UI bloklanmasın
+        thread_create_start = time.time()
+        print(f"🟢 [DEBUG] ⏱️ Thread yaradılır...")
+        
+        def load_data_async():
+            thread_start_time = time.time()
+            thread_id = threading.current_thread().ident
+            thread_name = threading.current_thread().name
+            print(f"🔵 [DEBUG] ⏱️ load_data_async THREAD BAŞLADI: {thread_start_time}")
+            print(f"🔵 [DEBUG] ⏱️ Thread ID: {thread_id}, Name: {thread_name}")
+            logging.info(f"🔵 [DEBUG] load_data_async thread başladı")
+            try:
+                # Thread-də də current_view-i yenidən yoxla (views yaradıla bilər)
+                thread_current_view = current_view
                 try:
-                    from utils import cache
-                    # Cache-dən yoxla
-                    if cache.is_cache_valid_for_user():
-                        cached_data = cache.load_cache()
-                        if cached_data and 'employees' in cached_data:
-                            # Yalnız işçi məlumatlarını götür, vacation məlumatlarını dashboard özü yükləyir
-                            self.data = {k: {**v, 'goturulen_icazeler': []} for k, v in cached_data.items() if 'employees' in str(type(cached_data)) or isinstance(cached_data, dict)}
-                            logging.info(f"Dashboard üçün cache-dən işçi məlumatları yükləndi. Ölçü: {len(self.data)}")
-                        else:
-                            # Cache yoxdursa, yalnız işçi məlumatlarını yüklə
-                            self._load_employee_list_only()
-                    else:
-                        # Cache etibarsızdırsa, yalnız işçi məlumatlarını yüklə
+                    for view_name, view_frame in self.views.items():
+                        if hasattr(view_frame, 'winfo_viewable') and view_frame.winfo_viewable():
+                            thread_current_view = view_name
+                            break
+                except:
+                    pass
+                
+                if thread_current_view is None:
+                    thread_current_view = 'dashboard'
+                
+                print(f"🔵 [DEBUG] Thread-də current_view={thread_current_view}, load_full_data={load_full_data}")
+                
+                # Lazy loading: Yalnız lazım olan məlumatları yüklə
+                if not load_full_data:
+                    print(f"🔵 [DEBUG] load_full_data=False, current_view={thread_current_view}")
+                    # İlk açılışda yalnız dashboard üçün lazım olan məlumatları yüklə
+                    if thread_current_view == 'dashboard':
+                        print(f"🔵 [DEBUG] Dashboard görünüşü üçün məlumatlar yüklənir...")
+                        logging.info("Dashboard görünüşü üçün yalnız lazım olan məlumatlar yüklənir...")
+                        # Dashboard üçün yalnız işçi siyahısını yüklə (vacation məlumatları dashboard özü yükləyir)
+                        # Cache yoxlamasını da thread-də et - UI bloklanmasın
+                        try:
+                            print(f"🔵 [DEBUG] Cache import edilir...")
+                            from utils import cache
+                            print(f"🔵 [DEBUG] Cache import edildi, is_admin={self.is_admin}")
+                            # Cache-dən yoxla - yalnız admin üçün (thread-də)
+                            if self.is_admin:
+                                print(f"🔵 [DEBUG] Admin üçün cache yoxlanılır...")
+                                cache_valid = cache.is_cache_valid_for_user()
+                                print(f"🔵 [DEBUG] Cache valid: {cache_valid}")
+                                if cache_valid:
+                                    try:
+                                        print(f"🔵 [DEBUG] Cache yüklənir...")
+                                        cache_start = time.time()
+                                        cached_data = cache.load_cache()
+                                        cache_time = time.time() - cache_start
+                                        print(f"🔵 [DEBUG] Cache yükləndi {cache_time:.3f}s, data type: {type(cached_data)}, len: {len(cached_data) if isinstance(cached_data, dict) else 'N/A'}")
+                                        if cached_data and isinstance(cached_data, dict) and len(cached_data) > 0:
+                                            print(f"🔵 [DEBUG] Cache-dən məlumatlar alınır...")
+                                            # Yalnız işçi məlumatlarını götür, vacation məlumatlarını dashboard özü yükləyir
+                                            self.data = {k: {**v, 'goturulen_icazeler': []} for k, v in cached_data.items() if isinstance(v, dict)}
+                                            print(f"🔵 [DEBUG] Cache-dən məlumatlar alındı. Ölçü: {len(self.data)}")
+                                            logging.info(f"Dashboard üçün cache-dən işçi məlumatları yükləndi. Ölçü: {len(self.data)}")
+                                            # UI thread-də refresh et - thread-də bloklanmamaq üçün dərhal return et
+                                            sel_keep = selection_to_keep
+                                            print(f"🔵 [DEBUG] UI thread-də refresh çağırılır (cache)...")
+                                            thread_time = time.time() - thread_start_time
+                                            print(f"🔵 [DEBUG] load_data_async thread bitdi (cache): {thread_time:.3f}s")
+                                            # after çağırışını thread-dən sonra et - thread-də bloklanmamaq üçün
+                                            def refresh_ui_cache():
+                                                try:
+                                                    self._update_notification_button()
+                                                    self.refresh_employee_list(sel_keep)
+                                                except Exception as e:
+                                                    print(f"❌ [DEBUG] UI refresh xətası (cache): {e}")
+                                            try:
+                                                root = self.winfo_toplevel()
+                                                if root and root.winfo_exists():
+                                                    root.after(0, refresh_ui_cache)
+                                                else:
+                                                    self.after(0, refresh_ui_cache)
+                                            except:
+                                                pass
+                                            return
+                                    except Exception as cache_error:
+                                        print(f"❌ [DEBUG] Cache yükləmə xətası: {cache_error}")
+                                        logging.warning(f"Cache yükləmə xətası, veritabanından yüklənir: {cache_error}")
+                                        import traceback
+                                        print(f"❌ [DEBUG] Cache xəta traceback:\n{traceback.format_exc()}")
+                        except Exception as e:
+                            print(f"❌ [DEBUG] Cache yoxlama xətası: {e}")
+                            logging.error(f"Cache yoxlama xətası: {e}", exc_info=True)
+                            import traceback
+                            print(f"❌ [DEBUG] Cache yoxlama xəta traceback:\n{traceback.format_exc()}")
+                        
+                        # Cache yoxdursa və ya xəta varsa, yalnız işçi məlumatlarını yüklə - thread-də
+                        print(f"🔵 [DEBUG] Veritabanından işçi siyahısı yüklənir...")
+                        db_start = time.time()
                         self._load_employee_list_only()
-                except Exception as e:
-                    logging.error(f"Dashboard məlumatları yüklənərkən xəta: {e}", exc_info=True)
+                        db_time = time.time() - db_start
+                        print(f"🔵 [DEBUG] Veritabanından yükləmə bitdi: {db_time:.3f}s, data ölçü: {len(self.data) if hasattr(self, 'data') and self.data else 0}")
+                        # UI thread-də refresh et - thread-də bloklanmamaq üçün dərhal return et
+                        sel_keep = selection_to_keep
+                        print(f"🔵 [DEBUG] UI thread-də refresh çağırılır (veritabanı)...")
+                        # Thread-də bloklanmamaq üçün dərhal return et - after çağırışını thread-dən sonra et
+                        thread_time = time.time() - thread_start_time
+                        print(f"🔵 [DEBUG] load_data_async thread bitdi (veritabanı): {thread_time:.3f}s")
+                        # Thread-də bloklanmamaq üçün dərhal return et - UI refresh finally blokunda ediləcək
+                        return  # Thread-də bloklanmamaq üçün dərhal return et
+                    else:
+                        # Digər görünüşlər üçün tam məlumatları yüklə - asinxron
+                        print(f"🔵 [DEBUG] Digər görünüş üçün tam məlumatlar yüklənir: {thread_current_view}")
+                        logging.info(f"{thread_current_view} görünüşü üçün tam məlumatlar yüklənir...")
+                        self._load_full_data_async(selection_to_keep)
+                else:
+                    # Tam məlumatları yüklə - asinxron
+                    print(f"🔵 [DEBUG] Tam məlumatlar yüklənir (load_full_data=True)...")
+                    logging.info("Tam məlumatlar yüklənir...")
+                    self._load_full_data_async(selection_to_keep)
+                
+                # User üçün də məlumatların yükləndiyini yoxla
+                if not self.data and not self.is_admin:
+                    print(f"🔵 [DEBUG] User üçün məlumatlar yoxdur, yenidən yükləmə cəhdi...")
+                    logging.warning("User üçün məlumatlar yüklənmədi, yenidən yükləmə cəhdi...")
                     self._load_employee_list_only()
-            else:
-                # Digər görünüşlər üçün tam məlumatları yüklə
-                logging.info(f"{current_view} görünüşü üçün tam məlumatlar yüklənir...")
-                self._load_full_data()
-        else:
-            # Tam məlumatları yüklə
-            logging.info("Tam məlumatlar yüklənir...")
-            self._load_full_data()
+                    # UI thread-də refresh et - thread-də bloklanmamaq üçün dərhal return et
+                    sel_keep = selection_to_keep
+                    def refresh_ui_user():
+                        try:
+                            self._update_notification_button()
+                            self.refresh_employee_list(sel_keep)
+                        except Exception as e:
+                            print(f"❌ [DEBUG] UI refresh xətası (user): {e}")
+                    # after çağırışını thread-dən sonra et - thread-də bloklanmamaq üçün
+                    try:
+                        root = self.winfo_toplevel()
+                        if root and root.winfo_exists():
+                            root.after(0, refresh_ui_user)
+                        else:
+                            self.after(0, refresh_ui_user)
+                    except:
+                        pass
+            except Exception as e:
+                print(f"❌ [DEBUG] load_data_async xətası: {e}")
+                logging.error(f"load_and_refresh_data xətası: {e}", exc_info=True)
+                import traceback
+                print(f"❌ [DEBUG] load_data_async xəta traceback:\n{traceback.format_exc()}")
+                logging.error(traceback.format_exc())
+            finally:
+                thread_time = time.time() - thread_start_time
+                print(f"🔵 [DEBUG] load_data_async thread tam bitdi: {thread_time:.3f}s")
+                # Thread bitdikdən sonra UI refresh et - thread-də bloklanmamaq üçün
+                try:
+                    sel_keep = selection_to_keep
+                    def refresh_ui_final():
+                        try:
+                            import time
+                            final_start = time.time()
+                            print(f"🔵 [DEBUG] refresh_ui_final çağırıldı (UI thread-də)")
+                            
+                            # refresh_employee_list UI thread-də işləyir
+                            self.refresh_employee_list(sel_keep)
+                            
+                            # _update_notification_button artıq asinxrondur
+                            self._update_notification_button()
+                            
+                            final_time = time.time() - final_start
+                            print(f"🔵 [DEBUG] refresh_ui_final tam bitdi: {final_time:.3f}s")
+                        except Exception as e:
+                            print(f"❌ [DEBUG] UI refresh final xətası: {e}")
+                            import traceback
+                            print(f"❌ [DEBUG] UI refresh final xəta traceback:\n{traceback.format_exc()}")
+                            logging.error(f"UI refresh final xətası: {e}", exc_info=True)
+                    
+                    # UI thread-də çağır - thread-də bloklanmamaq üçün
+                    root = self.winfo_toplevel()
+                    if root and root.winfo_exists():
+                        root.after(0, refresh_ui_final)
+                    else:
+                        self.after(0, refresh_ui_final)
+                except Exception as e:
+                    print(f"❌ [DEBUG] Thread-dən sonra UI refresh xətası: {e}")
+                    import traceback
+                    print(f"❌ [DEBUG] Thread-dən sonra UI refresh xəta traceback:\n{traceback.format_exc()}")
         
-        # Debug: Məlumatların strukturunu yoxlayırıq (yalnız debug rejimində)
-        if logging.getLogger().getEffectiveLevel() <= logging.DEBUG:
-            if self.data:
-                logging.info("Məlumatların strukturu:")
-                for key, value in list(self.data.items())[:3]:  # İlk 3 elementi göstəririk
-                    logging.info(f"  {key}: {type(value)} - {value}")
-            else:
-                logging.warning("Məlumatlar yüklənmədi!")
+        # Asinxron thread-də yüklə - UI bloklanmasın
+        thread_create_time = time.time() - thread_create_start
+        print(f"🟢 [DEBUG] ⏱️ Thread yaradılması bitdi: {thread_create_time:.3f}s")
         
-        self._update_notification_button()
-        self.refresh_employee_list(selection_to_keep)
+        thread_start_time = time.time()
+        print(f"🟢 [DEBUG] ⏱️ Thread yaradılır və başladılır...")
+        thread = threading.Thread(target=load_data_async, daemon=True, name="DataLoader")
+        thread_create_done = time.time()
+        print(f"🟢 [DEBUG] ⏱️ Thread obyekti yaradıldı: {thread_create_done - thread_start_time:.3f}s")
+        
+        start_time = time.time()
+        thread.start()
+        start_done = time.time()
+        print(f"🟢 [DEBUG] ⏱️ Thread.start() çağırıldı: {start_done - start_time:.3f}s")
+        print(f"🟢 [DEBUG] ⏱️ Thread başladıldı, ID: {thread.ident}, is_alive: {thread.is_alive()}")
+        
+        func_time = time.time() - func_start
+        print(f"🟢 [DEBUG] ⏱️ load_and_refresh_data funksiyası bitdi: {func_time:.3f}s (thread yaradıldı və başladıldı)")
     
     def _load_employee_list_only(self):
         """Yalnız işçi siyahısını yükləyir (vacation məlumatları olmadan) - daha sürətli"""
-        logging.info("Yalnız işçi siyahısı yüklənir (vacation məlumatları olmadan)...")
+        import time
+        start_time = time.time()
+        user_role = self.current_user.get('role', 'unknown').strip()
+        user_id = self.current_user.get('id', 'unknown')
+        print(f"🔵 [DEBUG] _load_employee_list_only başladı: User={user_role}, ID={user_id}")
+        logging.info(f"Yalnız işçi siyahısı yüklənir (vacation məlumatları olmadan)... User: {user_role}, ID: {user_id}")
+        conn = None
         try:
+            print(f"🔵 [DEBUG] Database import edilir...")
             from database import database as db
+            print(f"🔵 [DEBUG] Database import edildi, db_connect çağırılır...")
+            db_connect_start = time.time()
             conn = db.db_connect()
+            db_connect_time = time.time() - db_connect_start
+            print(f"🔵 [DEBUG] db_connect bitdi: {db_connect_time:.3f}s, conn={conn is not None}")
             if not conn:
+                print(f"❌ [DEBUG] Veritabanı qoşulması uğursuz oldu")
                 logging.error("Veritabanı qoşulması uğursuz oldu")
                 self.data = {}
                 return
             
             data = {}
+            print(f"🔵 [DEBUG] Cursor yaradılır...")
             with conn.cursor() as cur:
                 # Aktiv sessiya saylarını alırıq
                 try:
+                    print(f"🔵 [DEBUG] Aktiv sessiyalar sorğusu işləyir...")
+                    session_start = time.time()
                     cur.execute("SELECT user_id, COUNT(*) FROM active_sessions GROUP BY user_id")
                     session_counts = dict(cur.fetchall())
-                except Exception:
+                    session_time = time.time() - session_start
+                    print(f"🔵 [DEBUG] Aktiv sessiyalar alındı: {session_time:.3f}s, say: {len(session_counts)}")
+                except Exception as e:
+                    print(f"⚠️ [DEBUG] Aktiv sessiyalar xətası: {e}")
                     session_counts = {}
                 
                 # İşçi məlumatlarını alırıq (vacation məlumatları olmadan)
+                print(f"🔵 [DEBUG] İşçi məlumatları sorğusu hazırlanır, role={self.current_user['role'].strip()}")
                 if self.current_user['role'].strip() == 'admin':
                     cur.execute("""
                         SELECT id, name, total_vacation_days, is_active, max_sessions,
@@ -2272,6 +2587,14 @@ class MainAppFrame(ttk.Frame):
                         ORDER BY name
                     """)
                 else:
+                    # User üçün - yalnız öz məlumatlarını yüklə
+                    user_id = self.current_user.get('id')
+                    if not user_id:
+                        logging.error(f"User ID tapılmadı! current_user: {self.current_user}")
+                        self.data = {}
+                        conn.close()
+                        return
+                    logging.info(f"User üçün məlumatlar yüklənir. User ID: {user_id}")
                     cur.execute("""
                         SELECT id, name, total_vacation_days, is_active, max_sessions,
                                first_name, last_name, father_name, email, phone_number,
@@ -2279,9 +2602,16 @@ class MainAppFrame(ttk.Frame):
                                fin_code, department_id, position_id
                         FROM employees 
                         WHERE id = %s AND (hide IS NULL OR hide = FALSE)
-                    """, (self.current_user['id'],))
+                    """, (user_id,))
                 
+                print(f"🔵 [DEBUG] İşçi sorğusu işləyir...")
+                emp_query_start = time.time()
                 employees = cur.fetchall()
+                emp_query_time = time.time() - emp_query_start
+                print(f"🔵 [DEBUG] İşçi sorğusu bitdi: {emp_query_time:.3f}s, say: {len(employees)}")
+                logging.info(f"İşçi sayı tapıldı: {len(employees)} (User: {user_role}, ID: {user_id})")
+                print(f"🔵 [DEBUG] İşçi məlumatları işlənir...")
+                emp_process_start = time.time()
                 for emp in employees:
                     emp_id, name, total_days, is_active, max_sessions, first_name, last_name, father_name, email, phone_number, birth_date, address, position, department, hire_date, salary, profile_image, role, username, fin_code, department_id, position_id = emp
                     
@@ -2311,15 +2641,50 @@ class MainAppFrame(ttk.Frame):
                         'position_id': position_id if position_id is not None else ''
                     }
             
-            conn.close()
+                emp_process_time = time.time() - emp_process_start
+                print(f"🔵 [DEBUG] İşçi məlumatları işləndi: {emp_process_time:.3f}s")
+            
             self.data = data
+            total_time = time.time() - start_time
+            print(f"🔵 [DEBUG] _load_employee_list_only bitdi: {total_time:.3f}s, data ölçü: {len(self.data)}")
             logging.info(f"Yalnız işçi siyahısı yükləndi. Ölçü: {len(self.data)}")
         except Exception as e:
+            total_time = time.time() - start_time
+            print(f"❌ [DEBUG] _load_employee_list_only xətası ({total_time:.3f}s): {e}")
             logging.error(f"İşçi siyahısı yüklənərkən xəta: {e}", exc_info=True)
+            import traceback
+            print(f"❌ [DEBUG] _load_employee_list_only xəta traceback:\n{traceback.format_exc()}")
             self.data = {}
+        finally:
+            # Bağlantını həmişə bağla
+            if conn:
+                try:
+                    print(f"🔵 [DEBUG] Veritabanı bağlantısı bağlanır...")
+                    conn.close()
+                    print(f"🔵 [DEBUG] Veritabanı bağlantısı bağlandı")
+                except Exception as e:
+                    print(f"⚠️ [DEBUG] Veritabanı bağlantısı bağlanarkən xəta: {e}")
+    
+    def _load_employee_list_async(self):
+        """İşçi siyahısını asinxron şəkildə yükləyir - UI donmasın"""
+        import threading
+        def load_in_thread():
+            try:
+                self._load_employee_list_only()
+                # UI thread-də refresh et
+                if hasattr(self, 'refresh_employee_list'):
+                    logging.info(f"Asinxron yükləmə tamamlandı, refresh çağırılır. Data ölçü: {len(self.data)}")
+                    self.after(0, self.refresh_employee_list)
+                else:
+                    logging.warning("refresh_employee_list funksiyası tapılmadı!")
+            except Exception as e:
+                logging.error(f"Asinxron yükləmə xətası: {e}", exc_info=True)
+        
+        thread = threading.Thread(target=load_in_thread, daemon=True)
+        thread.start()
     
     def _load_full_data(self):
-        """Tam məlumatları yükləyir (işçilər + vacation məlumatları)"""
+        """Tam məlumatları yükləyir (işçilər + vacation məlumatları) - sinxron versiya"""
         logging.info("Tam məlumatlar yüklənir...")
         try:
             is_first_load = not hasattr(self, '_data_loaded_once')
@@ -2327,40 +2692,159 @@ class MainAppFrame(ttk.Frame):
             self._data_loaded_once = True
             self._full_data_loaded = True
             logging.info(f"Tam məlumatlar yükləndi. Ölçü: {len(self.data)}")
-            
-            # İşçi siyahısını yenilə
-            if hasattr(self, 'refresh_employee_list'):
-                self.refresh_employee_list()
         except Exception as e:
             logging.error(f"Tam məlumatlar yüklənərkən xəta: {e}", exc_info=True)
             self.data = {}
+    
+    def _load_full_data_async(self, selection_to_keep=None):
+        """Tam məlumatları asinxron şəkildə yükləyir (işçilər + vacation məlumatları) - UI bloklanmır"""
+        import threading
+        import time
+        def load_in_thread():
+            thread_start = time.time()
+            print(f"🔵 [DEBUG] _load_full_data_async thread başladı")
+            try:
+                is_first_load = not hasattr(self, '_data_loaded_once')
+                print(f"🔵 [DEBUG] _load_full_data_async: database.load_data_for_user çağırılır...")
+                load_start = time.time()
+                self.data = database.load_data_for_user(self.current_user, force_refresh=not is_first_load)
+                load_time = time.time() - load_start
+                print(f"🔵 [DEBUG] _load_full_data_async: database.load_data_for_user bitdi: {load_time:.3f}s, data ölçü: {len(self.data)}")
+                self._data_loaded_once = True
+                self._full_data_loaded = True
+                logging.info(f"Tam məlumatlar yükləndi. Ölçü: {len(self.data)}")
+                
+                # UI thread-də refresh et - asinxron funksiyaları ayrı-ayrı çağır
+                sel_keep = selection_to_keep
+                def refresh_ui():
+                    try:
+                        print(f"🔵 [DEBUG] _load_full_data_async: UI refresh başladı")
+                        refresh_start = time.time()
+                        # refresh_employee_list UI thread-də işləyir, amma tez olmalıdır
+                        self.refresh_employee_list(sel_keep)
+                        refresh_time = time.time() - refresh_start
+                        print(f"🔵 [DEBUG] _load_full_data_async: refresh_employee_list bitdi: {refresh_time:.3f}s")
+                        
+                        # _update_notification_button artıq asinxrondur, sadəcə çağır
+                        self._update_notification_button()
+                        
+                        # update_profile_button UI thread-də işləyir
+                        if hasattr(self, 'update_profile_button'):
+                            self.update_profile_button()
+                        
+                        # _check_employee_selection_after_load UI thread-də işləyir
+                        self._check_employee_selection_after_load()
+                        
+                        total_refresh_time = time.time() - refresh_start
+                        print(f"🔵 [DEBUG] _load_full_data_async: UI refresh tam bitdi: {total_refresh_time:.3f}s")
+                    except Exception as e:
+                        print(f"❌ [DEBUG] _load_full_data_async: UI refresh xətası: {e}")
+                        import traceback
+                        print(f"❌ [DEBUG] _load_full_data_async: UI refresh xəta traceback:\n{traceback.format_exc()}")
+                        logging.error(f"UI refresh xətası: {e}", exc_info=True)
+                
+                # UI thread-də refresh et
+                try:
+                    root = self.winfo_toplevel()
+                    if root and root.winfo_exists():
+                        root.after(0, refresh_ui)
+                    else:
+                        self.after(0, refresh_ui)
+                except Exception as e:
+                    print(f"❌ [DEBUG] _load_full_data_async: after çağırışı xətası: {e}")
+                
+                thread_time = time.time() - thread_start
+                print(f"🔵 [DEBUG] _load_full_data_async thread bitdi: {thread_time:.3f}s")
+            except Exception as e:
+                thread_time = time.time() - thread_start
+                print(f"❌ [DEBUG] _load_full_data_async xətası ({thread_time:.3f}s): {e}")
+                logging.error(f"Tam məlumatlar yüklənərkən xəta: {e}", exc_info=True)
+                import traceback
+                print(f"❌ [DEBUG] _load_full_data_async xəta traceback:\n{traceback.format_exc()}")
+                self.data = {}
+                # UI thread-də refresh et (boş data ilə)
+                sel_keep = selection_to_keep
+                def refresh_ui_error():
+                    try:
+                        self.refresh_employee_list(sel_keep)
+                        self._update_notification_button()
+                    except Exception as e2:
+                        print(f"❌ [DEBUG] _load_full_data_async: Error refresh xətası: {e2}")
+                try:
+                    root = self.winfo_toplevel()
+                    if root and root.winfo_exists():
+                        root.after(0, refresh_ui_error)
+                    else:
+                        self.after(0, refresh_ui_error)
+                except:
+                    pass
         
-        # Profil düyməsinin mətnini yenilə
-        if hasattr(self, 'update_profile_button'):
-            self.update_profile_button()
-        # Təhlükəsizlik yoxlaması: Adi istifadəçi yalnız dashboard görünüşünü görə bilər
-        if self.current_user['role'].strip() == 'admin' and current_view != 'dashboard' and self.employee_listbox.curselection():
-            self.on_employee_select(None)  # None event ilə çağırırıq
-        # Removed automatic switch to employee_details view when no selection
+        thread = threading.Thread(target=load_in_thread, daemon=True, name="FullDataLoader")
+        thread.start()
+        print(f"🔵 [DEBUG] _load_full_data_async thread başladıldı")
+    
+    def _check_employee_selection_after_load(self):
+        """Məlumatlar yükləndikdən sonra işçi seçimini yoxla"""
+        try:
+            # Təhlükəsizlik yoxlaması: Adi istifadəçi yalnız dashboard görünüşünü görə bilər
+            current_view = None
+            for view_name, view_frame in self.views.items():
+                if view_frame.winfo_viewable():
+                    current_view = view_name
+                    break
+            
+            if self.current_user['role'].strip() == 'admin' and current_view != 'dashboard' and hasattr(self, 'employee_listbox') and self.employee_listbox.curselection():
+                self.on_employee_select(None)  # None event ilə çağırırıq
+        except Exception as e:
+            logging.error(f"_check_employee_selection_after_load xətası: {e}", exc_info=True)
         
     def refresh_employee_list(self, selection_to_keep=None):
-        if not hasattr(self, 'employee_listbox'): return
-        self.employee_listbox.delete(0, tb.END)
-        if not hasattr(self, 'data') or not self.data: return
+        """İşçi siyahısını yeniləyir - asinxron batch processing ilə UI bloklanmır"""
+        import time
+        import threading
         
-        # Təhlükəsizlik yoxlaması: Adi istifadəçi yalnız öz şöbəsinin işçilərini görə bilər
+        # Əgər artıq refresh işləyirsə, gözlə
+        if hasattr(self, '_refresh_in_progress') and self._refresh_in_progress:
+            print(f"⚠️ [DEBUG] refresh_employee_list: Artıq refresh işləyir, gözləyirəm...")
+            self.after(100, lambda: self.refresh_employee_list(selection_to_keep))
+            return
+        
+        refresh_start = time.time()
+        thread_id = threading.current_thread().ident
+        thread_name = threading.current_thread().name
+        print(f"🔵 [DEBUG] [UI THREAD] ⏱️ refresh_employee_list BAŞLADI: selection_to_keep={selection_to_keep}")
+        print(f"🔵 [DEBUG] [UI THREAD] ⏱️ Thread ID: {thread_id}, Name: {thread_name}")
+        
+        if not hasattr(self, 'employee_listbox'): 
+            print(f"⚠️ [DEBUG] [UI THREAD] ⏱️ refresh_employee_list: employee_listbox tapılmadı!")
+            logging.warning("employee_listbox tapılmadı!")
+            return
+        
+        delete_start = time.time()
+        print(f"🔵 [DEBUG] [UI THREAD] ⏱️ listbox.delete çağırılır...")
+        self.employee_listbox.delete(0, tb.END)
+        delete_time = time.time() - delete_start
+        print(f"🔵 [DEBUG] [UI THREAD] ⏱️ listbox təmizləndi: {delete_time:.3f}s")
+        if delete_time > 0.1:
+            print(f"⚠️ [DEBUG] [UI THREAD] ⚠️ listbox.delete() ÇOX UZUN: {delete_time:.3f}s - UI BLOKLANIR!")
+        
+        if not hasattr(self, 'data') or not self.data: 
+            print(f"⚠️ [DEBUG] [UI THREAD] refresh_employee_list: Data yoxdur! hasattr data: {hasattr(self, 'data')}, data: {getattr(self, 'data', None)}")
+            logging.warning(f"Data yoxdur! hasattr data: {hasattr(self, 'data')}, data: {getattr(self, 'data', None)}")
+            return
+        
+        print(f"🔵 [DEBUG] [UI THREAD] refresh_employee_list: Data ölçü: {len(self.data)}, User: {self.current_user.get('name', 'unknown')}")
+        logging.info(f"refresh_employee_list çağırıldı. Data ölçü: {len(self.data)}, User: {self.current_user.get('name', 'unknown')}")
+        
+        # Təhlükəsizlik yoxlaması: Adi istifadəçi yalnız öz adını görə bilər
+        filter_start = time.time()
         if self.current_user['role'].strip() != 'admin':
-            # Adi istifadəçi üçün yalnız öz şöbəsinin işçilərini göstəririk
+            # Adi istifadəçi üçün yalnız öz adını göstəririk
             current_user_name = self.current_user.get('name', '')
-            current_user_data = self.data.get(current_user_name, {})
-            current_user_department = current_user_data.get('department', '') if isinstance(current_user_data, dict) else ''
-            
             filtered_data = {}
-            for name, emp_data in self.data.items():
-                if isinstance(emp_data, dict):
-                    emp_department = emp_data.get('department', '')
-                    if emp_department == current_user_department:
-                        filtered_data[name] = emp_data
+            # Yalnız öz adını göstər
+            if current_user_name in self.data:
+                filtered_data[current_user_name] = self.data[current_user_name]
         else:
             # Admin üçün bütün məlumatları göstəririk (filtr varsa tətbiq edilir)
             filtered_data = self.data.copy()
@@ -2376,7 +2860,11 @@ class MainAppFrame(ttk.Frame):
                                if search_lower in name.lower() or 
                                (isinstance(data, dict) and search_lower in data.get('department', '').lower())}
         
+        filter_time = time.time() - filter_start
+        print(f"🔵 [DEBUG] [UI THREAD] refresh_employee_list: Filtr tətbiq edildi: {filter_time:.3f}s, filtered_data ölçü: {len(filtered_data)}")
+        
         # Şöbələr üzrə qruplaşdırma
+        group_start = time.time()
         departments_dict = {}
         for name, emp_data in filtered_data.items():
             if isinstance(emp_data, dict):
@@ -2388,48 +2876,52 @@ class MainAppFrame(ttk.Frame):
                 departments_dict[dept] = []
             departments_dict[dept].append((name, emp_data))
         
-        # Şöbələri sırala və işçiləri göstər
+        group_time = time.time() - group_start
+        print(f"🔵 [DEBUG] refresh_employee_list: Qruplaşdırma bitdi: {group_time:.3f}s, departments: {len(departments_dict)}")
+        
+        # Hazırlıq: Şöbələri və işçiləri hazırla
+        prep_start = time.time()
         restored_idx = -1
-        item_index = 0
         
         # Şöbələrin gizlənməsi üçün dictionary
         if not hasattr(self, 'department_visibility'):
             self.department_visibility = {}
         
-        for dept in sorted(departments_dict.keys()):
-            # Şöbə başlığı - ortalanmış
-            if len(departments_dict) > 1:  # Yalnız bir neçə şöbə varsa başlıq göstər
-                # Şöbə görünürlüyünü yoxla
+        # Başlanğıcda bütün şöbələr bağlıdır (False) - yalnız ilk dəfə
+        if not self.department_visibility:
+            for dept in sorted(departments_dict.keys()):
+                self.department_visibility[dept] = False
+        
+        # Filtr tətbiq olunubsa, yalnız seçilmiş şöbəni göstər
+        filtered_departments = sorted(departments_dict.keys())
+        if hasattr(self, 'selected_department_filter') and self.selected_department_filter:
+            filtered_departments = [dept for dept in filtered_departments if dept == self.selected_department_filter]
+        
+        # User üçün şöbə başlığı göstərmə - yalnız öz adı görünür
+        show_department_headers = self.is_admin or len(departments_dict) > 1
+        
+        # Bütün item-ləri hazırla (listbox-a yazmadan)
+        all_items = []  # [(item_text, fg_color, bg_color, is_dept_header, name_for_selection), ...]
+        
+        for dept in filtered_departments:
+            # Şöbə başlığı
+            if show_department_headers:
                 if dept not in self.department_visibility:
+                    self.department_visibility[dept] = False
+                
+                if hasattr(self, 'selected_department_filter') and self.selected_department_filter == dept:
                     self.department_visibility[dept] = True
                 
-                # Şöbə başlığını ortala - mərkəzləşdirilmiş format
-                dept_header = f"━━━ {dept} ━━━"
-                # Listbox genişliyini al və ortala
-                try:
-                    self.employee_listbox.update_idletasks()
-                    listbox_width = self.employee_listbox.winfo_width()
-                    if listbox_width <= 1:  # Hələ render olunmayıbsa, default genişlik istifadə et
-                        listbox_width = 300
-                    # Şrift ölçüsünə görə təxmini simvol sayı
-                    char_width = 8  # Təxmini simvol genişliyi
-                    max_chars = listbox_width // char_width
-                    padding = max(0, (max_chars - len(dept_header)) // 2)
-                    centered_header = " " * padding + dept_header
-                except:
-                    # Fallback - sadə format
-                    centered_header = f"━━━ {dept} ━━━"
-                
-                self.employee_listbox.insert(tb.END, centered_header)
-                # tk.Listbox-da font option-u yoxdur, yalnız rəng dəyişikliyi edə bilərik
-                self.employee_listbox.itemconfig(item_index, {'fg': '#007bff'})
-                item_index += 1
+                is_expanded = self.department_visibility.get(dept, False)
+                expand_indicator = "▼" if is_expanded else "▶"
+                dept_header = f"{expand_indicator} {dept}"
+                all_items.append((dept_header, '#1976d2', '#f5f5f5', True, None))
             
-            # Şöbədəki işçilər - yalnız görünürsə göstər
-            if self.department_visibility.get(dept, True):
+            # Şöbədəki işçilər
+            should_show_employees = True if not self.is_admin else self.department_visibility.get(dept, True)
+            if should_show_employees:
                 employees_in_dept = sorted(departments_dict[dept], key=lambda x: x[0])
                 for name, employee_data in employees_in_dept:
-                    # employee_data boolean və ya string ola bilər, yoxlayırıq
                     if isinstance(employee_data, bool):
                         is_active_account = employee_data
                         active_sessions = 0
@@ -2440,42 +2932,167 @@ class MainAppFrame(ttk.Frame):
                         is_active_account = employee_data.get("is_active", True)
                         active_sessions = employee_data.get("active_session_count", 0)
 
-                    indicator = "●"
-                    color = "#808080"
-                    session_text = ""
-
                     if not is_active_account:
-                        color = "gray"
-                        display_name = f"{indicator} {name} [Deaktiv]"
+                        indicator = "○"
+                        color = "#9e9e9e"
+                        display_name = f"  {indicator} {name} [Deaktiv]"
+                        bg_color = "#fafafa"
                     elif active_sessions > 0:
-                        color = "green"
-                        if active_sessions > 1: session_text = f" ({active_sessions})"
-                        display_name = f"{indicator} {name}{session_text}"
+                        indicator = "●"
+                        color = "#2e7d32"
+                        session_text = f" ({active_sessions})" if active_sessions > 1 else ""
+                        display_name = f"  {indicator} {name}{session_text}"
+                        bg_color = "#e8f5e9"
                     else:
-                        display_name = f"{indicator} {name}"
+                        indicator = "●"
+                        color = "#424242"
+                        display_name = f"  {indicator} {name}"
+                        bg_color = "#ffffff"
                     
-                    self.employee_listbox.insert(tb.END, display_name)
-                    self.employee_listbox.itemconfig(item_index, {'fg': color})
-                    
-                    if name == selection_to_keep:
-                        restored_idx = item_index
-                    
-                    item_index += 1
+                    all_items.append((display_name, color, bg_color, False, name))
+        
+        prep_time = time.time() - prep_start
+        print(f"🔵 [DEBUG] [UI THREAD] Hazırlıq bitdi: {prep_time:.3f}s, items: {len(all_items)}")
+        
+        # OPTİMALLAŞDIRMA: Asinxron batch processing ilə listbox-a yaz
+        self._refresh_in_progress = True
+        batch_size = 50  # OPTİMALLAŞDIRMA: 10-dan 50-yə artırdıq - daha az batch, daha sürətli
+        self._refresh_batch_index = 0
+        self._refresh_items = all_items
+        self._refresh_selection_to_keep = selection_to_keep
+        self._refresh_start_time = refresh_start
+        self._refresh_delete_time = delete_time
+        self._refresh_filter_time = filter_time
+        self._refresh_group_time = group_time
+        self._refresh_display_start_time = time.time()  # Display başlanğıc vaxtı
+        self._refresh_batch_count = 0  # OPTİMALLAŞDIRMA: Batch sayğacı
+        
+        def process_batch():
+            try:
+                batch_start = time.time()
+                start_idx = self._refresh_batch_index
+                end_idx = min(start_idx + batch_size, len(self._refresh_items))
                 
-        if restored_idx != -1:
-            self.employee_listbox.selection_set(restored_idx)
-            self.employee_listbox.activate(restored_idx)
-            self.employee_listbox.see(restored_idx)
+                print(f"🔵 [DEBUG] [UI THREAD] ⏱️ process_batch BAŞLADI: batch={self._refresh_batch_count}, start_idx={start_idx}, end_idx={end_idx}, total={len(self._refresh_items)}")
+                
+                if start_idx >= len(self._refresh_items):
+                    # Bitdi
+                    self._refresh_in_progress = False
+                    display_end_time = time.time()
+                    display_time = display_end_time - self._refresh_display_start_time
+                    
+                    print(f"🔵 [DEBUG] [UI THREAD] ⏱️ process_batch: Bütün batch-lər bitdi, display_time: {display_time:.3f}s")
+                    
+                    # Seçimi bərpa et
+                    restore_start = time.time()
+                    if hasattr(self, 'employee_listbox'):
+                        restored_idx = -1
+                        for idx, (_, _, _, _, name) in enumerate(self._refresh_items):
+                            if name == self._refresh_selection_to_keep:
+                                restored_idx = idx
+                                break
+                        
+                        if restored_idx != -1:
+                            sel_start = time.time()
+                            print(f"🔵 [DEBUG] [UI THREAD] ⏱️ Seçim bərpa edilir: index={restored_idx}")
+                            self.employee_listbox.selection_set(restored_idx)
+                            sel_time1 = time.time() - sel_start
+                            print(f"🔵 [DEBUG] [UI THREAD] ⏱️ selection_set bitdi: {sel_time1:.3f}s")
+                            
+                            sel_start = time.time()
+                            self.employee_listbox.activate(restored_idx)
+                            sel_time2 = time.time() - sel_start
+                            print(f"🔵 [DEBUG] [UI THREAD] ⏱️ activate bitdi: {sel_time2:.3f}s")
+                            
+                            sel_start = time.time()
+                            self.employee_listbox.see(restored_idx)
+                            sel_time3 = time.time() - sel_start
+                            print(f"🔵 [DEBUG] [UI THREAD] ⏱️ see bitdi: {sel_time3:.3f}s")
+                    
+                    restore_time = time.time() - restore_start
+                    print(f"🔵 [DEBUG] [UI THREAD] ⏱️ Seçim bərpa tamamlandı: {restore_time:.3f}s")
+                    
+                    total_time = time.time() - self._refresh_start_time
+                    print(f"🔵 [DEBUG] [UI THREAD] ⏱️ refresh_employee_list TAM BİTDİ: {total_time:.3f}s (delete: {self._refresh_delete_time:.3f}s, filter: {self._refresh_filter_time:.3f}s, group: {self._refresh_group_time:.3f}s, display: {display_time:.3f}s)")
+                    return
+                
+                # DEBUG: Batch-i işlə - DETALLI LOGLAR
+                print(f"🔵 [DEBUG] [UI THREAD] ⏱️ Batch işləməyə başladı: {start_idx}-{end_idx-1}/{len(self._refresh_items)}")
+                insert_start = time.time()
+                
+                for idx in range(start_idx, end_idx):
+                    item_start = time.time()
+                    item_text, fg_color, bg_color, is_dept, name = self._refresh_items[idx]
+                    
+                    size_start = time.time()
+                    item_index = self.employee_listbox.size()
+                    size_time = time.time() - size_start
+                    if size_time > 0.01:
+                        print(f"⚠️ [DEBUG] [UI THREAD] ⏱️ listbox.size() çox uzun: {size_time:.3f}s")
+                    
+                    insert_item_start = time.time()
+                    self.employee_listbox.insert(tb.END, item_text)
+                    insert_item_time = time.time() - insert_item_start
+                    if insert_item_time > 0.01:
+                        print(f"⚠️ [DEBUG] [UI THREAD] ⏱️ listbox.insert() çox uzun: {insert_item_time:.3f}s, item: {item_text[:50]}")
+                    
+                    config_start = time.time()
+                    self.employee_listbox.itemconfig(item_index, {'fg': fg_color, 'bg': bg_color})
+                    config_time = time.time() - config_start
+                    if config_time > 0.01:
+                        print(f"⚠️ [DEBUG] [UI THREAD] ⏱️ itemconfig() çox uzun: {config_time:.3f}s, item: {item_text[:50]}")
+                    
+                    item_time = time.time() - item_start
+                    if item_time > 0.05:  # 50ms-dən çox çəkərsə
+                        print(f"⚠️ [DEBUG] [UI THREAD] ⏱️ Item işləməsi çox uzun: {item_time:.3f}s, item: {item_text[:50]}")
+                
+                insert_time = time.time() - insert_start
+                batch_time = time.time() - batch_start
+                self._refresh_batch_count += 1
+                
+                print(f"🔵 [DEBUG] [UI THREAD] ⏱️ Batch bitdi: batch={self._refresh_batch_count}, batch_time={batch_time:.3f}s, insert_time={insert_time:.3f}s, items={end_idx - start_idx}")
+                
+                # Növbəti batch-i planla
+                self._refresh_batch_index = end_idx
+                
+                # DEBUG: update_idletasks() çağırışı
+                if self._refresh_batch_count % 3 == 0:
+                    idletasks_start = time.time()
+                    print(f"🔵 [DEBUG] [UI THREAD] ⏱️ update_idletasks() çağırılır (batch={self._refresh_batch_count})...")
+                    self.update_idletasks()
+                    idletasks_time = time.time() - idletasks_start
+                    print(f"🔵 [DEBUG] [UI THREAD] ⏱️ update_idletasks() bitdi: {idletasks_time:.3f}s")
+                    if idletasks_time > 0.1:
+                        print(f"⚠️ [DEBUG] [UI THREAD] ⚠️ update_idletasks() ÇOX UZUN: {idletasks_time:.3f}s - UI BLOKLANIR!")
+                
+                # DEBUG: after() çağırışı
+                after_start = time.time()
+                print(f"🔵 [DEBUG] [UI THREAD] ⏱️ after(1, process_batch) çağırılır...")
+                self.after(1, process_batch)
+                after_time = time.time() - after_start
+                print(f"🔵 [DEBUG] [UI THREAD] ⏱️ after() bitdi: {after_time:.3f}s")
+                if after_time > 0.01:
+                    print(f"⚠️ [DEBUG] [UI THREAD] ⚠️ after() çox uzun: {after_time:.3f}s")
+                
+            except Exception as e:
+                print(f"❌ [DEBUG] [UI THREAD] Batch processing xətası: {e}")
+                import traceback
+                print(f"❌ [DEBUG] [UI THREAD] Batch processing xəta traceback:\n{traceback.format_exc()}")
+                self._refresh_in_progress = False
+        
+        # İlk batch-i başlat - 0ms gecikmə ilə dərhal başlat
+        print(f"🔵 [DEBUG] [UI THREAD] İlk batch planlanır, items: {len(all_items)}")
+        self.after(0, process_batch)
 
     def get_selected_employee_name(self):
         if not hasattr(self, 'employee_listbox') or not self.employee_listbox.curselection(): return None, None
         full_text = self.employee_listbox.get(self.employee_listbox.curselection()[0])
         
-        # Şöbə başlığı seçilibsə, None qaytar
-        if full_text.startswith("━━━"):
+        # Şöbə başlığı seçilibsə, None qaytar (▶ və ya ▼ ilə başlayan)
+        if full_text.strip().startswith("▶") or full_text.strip().startswith("▼"):
             return None, None
         
-        clean_name = full_text.replace("● ", "").split(" [")[0].split(" (")[0].strip()
+        clean_name = full_text.replace("● ", "").replace("○ ", "").split(" [")[0].split(" (")[0].strip()
         
         # Təhlükəsizlik yoxlaması: Adi istifadəçi yalnız öz şöbəsinin işçilərini seçə bilər
         if self.current_user['role'].strip() != 'admin':
@@ -2523,20 +3140,35 @@ class MainAppFrame(ttk.Frame):
             return
         
         if self.search_panel is None or not self.search_panel.winfo_exists():
-            # Panel yoxdursa yarad - left_frame-də, işçilər bölməsindən əvvəl
+            # Panel yoxdursa yarad - employee_frame-də, listbox-dan əvvəl
             # İşçilər bölməsini tap
             employee_frame = None
             for widget in self.left_frame.winfo_children():
-                if isinstance(widget, tb.LabelFrame) and widget.cget('text') == 'İşçilər':
-                    employee_frame = widget
+                if isinstance(widget, tk.Frame):
+                    # employee_wrapper içində employee_frame-i tap
+                    for child in widget.winfo_children():
+                        if isinstance(child, tb.LabelFrame) and child.cget('text') == 'İşçilər':
+                            employee_frame = child
+                            break
+                    if employee_frame:
+                        break
+            
+            if employee_frame is None:
+                return
+            
+            # Listbox frame-i tap
+            listbox_frame = None
+            for widget in employee_frame.winfo_children():
+                if hasattr(widget, 'winfo_children') and self.employee_listbox in widget.winfo_children():
+                    listbox_frame = widget
                     break
             
-            self.search_panel = tk.Frame(self.left_frame, bg=self.employee_frame_bg)
-            # İşçilər bölməsindən əvvəl yerləşdir
-            if employee_frame:
-                self.search_panel.pack(fill='x', pady=(0, 5), padx=5, before=employee_frame)
+            self.search_panel = tk.Frame(employee_frame, bg=self.employee_frame_bg)
+            # Listbox frame-dən əvvəl yerləşdir - listbox-u aşağıya sıxacaq
+            if listbox_frame:
+                self.search_panel.pack(fill='x', pady=(2, 3), padx=3, before=listbox_frame)  # Listbox-dan əvvəl
             else:
-                self.search_panel.pack(fill='x', pady=(0, 5), padx=5)
+                self.search_panel.pack(fill='x', pady=(2, 3), padx=3)  # Fallback
             
             # Axtarış input
             search_label = tk.Label(self.search_panel, text="Axtarış:", font=(self.main_font, 9), bg=self.search_panel.cget('bg'))
@@ -2582,7 +3214,20 @@ class MainAppFrame(ttk.Frame):
         
         if self.filter_panel is None or not self.filter_panel.winfo_exists():
             # Panel yoxdursa yarad - employee_frame-də, listbox-dan əvvəl
-            employee_frame = self.filter_button.master.master.master  # icon_container -> administrative_button_frame -> employee_frame
+            # İşçilər bölməsini tap
+            employee_frame = None
+            for widget in self.left_frame.winfo_children():
+                if isinstance(widget, tk.Frame):
+                    # employee_wrapper içində employee_frame-i tap
+                    for child in widget.winfo_children():
+                        if isinstance(child, tb.LabelFrame) and child.cget('text') == 'İşçilər':
+                            employee_frame = child
+                            break
+                    if employee_frame:
+                        break
+            
+            if employee_frame is None:
+                return
             
             # Listbox frame-i tap
             listbox_frame = None
@@ -2592,11 +3237,16 @@ class MainAppFrame(ttk.Frame):
                     break
             
             self.filter_panel = tk.Frame(employee_frame, bg=self.employee_frame_bg)
-            # Listbox frame-dən əvvəl yerləşdir
+            # Listbox frame-dən əvvəl yerləşdir - axtarış panelindən sonra
+            # Əgər axtarış paneli varsa, ondan sonra yerləşdir
             if listbox_frame:
-                self.filter_panel.pack(fill='x', pady=(2, 5), padx=5, before=listbox_frame)
+                # Axtarış paneli varsa, ondan sonra yerləşdir
+                if self.search_panel and self.search_panel.winfo_exists():
+                    self.filter_panel.pack(fill='x', pady=(2, 3), padx=3, after=self.search_panel)  # Axtarışdan sonra
+                else:
+                    self.filter_panel.pack(fill='x', pady=(2, 3), padx=3, before=listbox_frame)  # Listbox-dan əvvəl
             else:
-                self.filter_panel.pack(fill='x', pady=(2, 5), padx=5)
+                self.filter_panel.pack(fill='x', pady=(2, 3), padx=3)  # Fallback
             
             # Filtr label
             filter_label = tk.Label(self.filter_panel, text="Şöbə:", font=(self.main_font, 9), bg=self.filter_panel.cget('bg'))
@@ -2655,8 +3305,19 @@ class MainAppFrame(ttk.Frame):
             selected = self.department_filter_var.get()
             if selected == "Bütün şöbələr":
                 self.selected_department_filter = None
+                # Bütün şöbələr seçildikdə, bütün şöbələri bağlı saxla
+                if hasattr(self, 'department_visibility'):
+                    for dept in self.department_visibility.keys():
+                        self.department_visibility[dept] = False
             else:
                 self.selected_department_filter = selected
+                # Seçilmiş şöbəni aç, digərlərini bağla
+                if hasattr(self, 'department_visibility'):
+                    for dept in self.department_visibility.keys():
+                        if dept == selected:
+                            self.department_visibility[dept] = True  # Seçilmiş şöbəni aç
+                        else:
+                            self.department_visibility[dept] = False  # Digərlərini bağla
             self.refresh_employee_list()
     
     def edit_selected_employee(self):
@@ -3272,42 +3933,60 @@ class MainAppFrame(ttk.Frame):
             self.load_and_refresh_data()
             
     def _update_notification_button(self):
-        """Bildiriş düyməsini yeniləyir - qırmızı badge və animasiya ilə"""
+        """Bildiriş düyməsini yeniləyir - qırmızı badge və animasiya ilə - asinxron"""
         if not hasattr(self, 'notifications_button'):
             return
         
-        try:
-            unread_count = database.get_unread_notifications_for_user(self.current_user['id'])
-            
-            # Badge-i tap
-            badge = None
-            if hasattr(self.notifications_button, 'badge'):
-                badge = self.notifications_button.badge
-            elif hasattr(self.notifications_button, 'winfo_children'):
-                # Container-dan badge-i tap
-                for child in self.notifications_button.winfo_children():
-                    if hasattr(child, 'badge'):
-                        badge = child.badge
-                        break
-            
-            if badge:
-                if unread_count > 0:
-                    # Badge-i göstər və sayını yenilə
-                    badge.config(text=str(unread_count) if unread_count < 100 else '99+')
-                    # Badge-i iconun sağ yuxarı küncünə yerləşdir - yarısı icondan çıxacaq
-                    badge.place(relx=1.0, rely=0.0, anchor='ne', x=2, y=-2)
-                    
-                    # Animasiya başlat (əgər işləmirsə)
-                    if not hasattr(self.notifications_button, 'animation_running'):
-                        self.notifications_button.animation_running = False
-                    if not self.notifications_button.animation_running:
-                        self._start_notification_badge_animation(badge)
-                else:
-                    # Badge-i gizlət və animasiyanı dayandır
-                    badge.place_forget()
-                    self._stop_notification_badge_animation()
-        except Exception as e:
-            logging.warning(f"Bildiriş düyməsi yenilənərkən xəta: {e}")
+        # Database sorğusunu asinxron et - UI bloklanmasın
+        import threading
+        def update_badge_async():
+            try:
+                print(f"🔵 [DEBUG] _update_notification_button: Database sorğusu başladı...")
+                unread_count = database.get_unread_notifications_for_user(self.current_user['id'])
+                print(f"🔵 [DEBUG] _update_notification_button: Database sorğusu bitdi, unread_count={unread_count}")
+                
+                # UI thread-də badge-i yenilə
+                def update_ui():
+                    try:
+                        # Badge-i tap
+                        badge = None
+                        if hasattr(self.notifications_button, 'badge'):
+                            badge = self.notifications_button.badge
+                        elif hasattr(self.notifications_button, 'winfo_children'):
+                            # Container-dan badge-i tap
+                            for child in self.notifications_button.winfo_children():
+                                if hasattr(child, 'badge'):
+                                    badge = child.badge
+                                    break
+                        
+                        if badge:
+                            if unread_count > 0:
+                                # Badge-i göstər və sayını yenilə
+                                badge.config(text=str(unread_count) if unread_count < 100 else '99+')
+                                # Badge-i iconun sağ yuxarı küncünə yerləşdir - yarısı icondan çıxacaq
+                                badge.place(relx=1.0, rely=0.0, anchor='ne', x=2, y=-2)
+                                
+                                # Animasiya başlat (əgər işləmirsə)
+                                if not hasattr(self.notifications_button, 'animation_running'):
+                                    self.notifications_button.animation_running = False
+                                if not self.notifications_button.animation_running:
+                                    self._start_notification_badge_animation(badge)
+                            else:
+                                # Badge-i gizlət və animasiyanı dayandır
+                                badge.place_forget()
+                                self._stop_notification_badge_animation()
+                    except Exception as e:
+                        logging.warning(f"Bildiriş düyməsi UI yenilənərkən xəta: {e}")
+                
+                # UI thread-də yenilə
+                self.after(0, update_ui)
+            except Exception as e:
+                logging.warning(f"Bildiriş düyməsi yenilənərkən xəta: {e}")
+                print(f"❌ [DEBUG] _update_notification_button xətası: {e}")
+        
+        # Asinxron thread-də işlə
+        thread = threading.Thread(target=update_badge_async, daemon=True, name="NotificationUpdate")
+        thread.start()
     
     def _start_notification_badge_animation(self, badge):
         """Bildiriş badge animasiyasını başlat - yanıb-sönmə"""
@@ -5009,10 +5688,12 @@ class MainAppFrame(ttk.Frame):
         """Profil düyməsinin mətnini yeniləyir"""
         try:
             if hasattr(self, 'profile_button'):
-                new_text = f"👤 {self.current_user['name']} ({self.current_user['role']})"
-                self.profile_button.configure(text=new_text)
-                # Düymə ölçüsünü mətnə görə yenilə
-                self.profile_button.configure(width=len(new_text) + 5)
+                # profile_button Label-dir, text parametri yoxdur (yalnız image var)
+                # Tooltip-i yenilə
+                new_tooltip = f"👤 {self.current_user['name']} ({self.current_user['role']})"
+                # Tooltip-i yeniləmək üçün widget-ə bağlı tooltip-i tap və yenilə
+                # Amma tooltip sadəcə hover zamanı göstərilir, dəyişdirməyə ehtiyac yoxdur
+                pass  # Label-də text yoxdur, yalnız image var
         except Exception as e:
             logging.error(f"Profil düyməsi yeniləmə xətası: {e}")
 

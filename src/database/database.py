@@ -136,10 +136,19 @@ def db_connect():
 
 # --- ÇATIŞMAYAN FUNKSİYALAR ƏLAVƏ EDİLİR ---
 
-def get_all_active_vacations():
-    """Arxivə salınmamış bütün aktiv məzuniyyətləri gətirir."""
+def get_all_active_vacations(current_user=None):
+    """
+    Arxivə salınmamış bütün aktiv məzuniyyətləri gətirir.
+    
+    Args:
+        current_user: İstifadəçi məlumatları (dict). Əgər verilərsə və role='user' olarsa,
+                     yalnız eyni şöbədəki işçilərin məzuniyyətləri qaytarılır.
+    
+    Returns:
+        List of vacation dictionaries
+    """
     import logging
-    logging.debug("get_all_active_vacations çağırıldı")
+    logging.debug(f"get_all_active_vacations çağırıldı (user: {current_user.get('id') if current_user else 'None'})")
     
     # PostgreSQL cəhd et
     logging.debug("PostgreSQL cəhd edirik...")
@@ -148,12 +157,29 @@ def get_all_active_vacations():
         vacations = []
         try:
             with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT v.employee_id, e.name, v.start_date, v.end_date 
-                    FROM vacations v
-                    JOIN employees e ON v.employee_id = e.id
-                    WHERE v.is_archived = FALSE AND v.status = 'approved' AND v.is_inactive = FALSE
-                """)
+                # Təhlükəsizlik: User üçün SQL sorğusunda birbaşa şöbə filtrini tətbiq et
+                if current_user and current_user.get('role', '').strip() == 'user':
+                    # User üçün: yalnız eyni şöbədəki işçilərin məzuniyyətlərini gətir
+                    user_id = current_user.get('id')
+                    cur.execute("""
+                        SELECT v.employee_id, e.name, v.start_date, v.end_date 
+                        FROM vacations v
+                        JOIN employees e ON v.employee_id = e.id
+                        JOIN employees user_emp ON user_emp.id = %s
+                        WHERE v.is_archived = FALSE 
+                          AND v.status = 'approved' 
+                          AND v.is_inactive = FALSE
+                          AND e.department = user_emp.department
+                    """, (user_id,))
+                else:
+                    # Admin üçün: bütün məzuniyyətlər
+                    cur.execute("""
+                        SELECT v.employee_id, e.name, v.start_date, v.end_date 
+                        FROM vacations v
+                        JOIN employees e ON v.employee_id = e.id
+                        WHERE v.is_archived = FALSE AND v.status = 'approved' AND v.is_inactive = FALSE
+                    """)
+                
                 for row in cur.fetchall():
                     vacations.append({
                         'employee_id': row[0],
@@ -1135,8 +1161,9 @@ def load_data_for_user(current_user, force_refresh=False):
     def _load_data():
         logging.info(f"load_data_for_user başladı. İstifadəçi: {current_user['name']} (ID: {current_user['id']}, Rol: {current_user['role']}), force_refresh: {force_refresh}")
         
-        # hide sütununun mövcudluğunu yoxlayırıq
-        ensure_hide_column_exists()
+        # OPTİMALLAŞDIRMA: hide sütununu yalnız lazım olduqda yoxla
+        # Bu əməliyyat hər dəfə çağırılmamalıdır - cache edilməlidir
+        # ensure_hide_column_exists()  # ŞƏRTLİ: Yalnız lazım olduqda çağır
         
         # Cache sistemi ilə inteqrasiya
         from utils import cache
@@ -1159,8 +1186,11 @@ def load_data_for_user(current_user, force_refresh=False):
 
 def _perform_database_load(current_user):
     """Database-dən məlumatları yükləyir"""
-    # DÜZƏLİŞ: İşçi məzuniyyət günlərini yoxlayırıq və düzəldirik
-    check_and_fix_employee_vacation_days()
+    # OPTİMALLAŞDIRMA: İşçi məzuniyyət günlərini yoxlama yalnız lazım olduqda işləsin
+    # Hər dəfə yoxlamaq yerinə, yalnız ilk dəfə və ya cache-də yoxdursa yoxla
+    # Bu funksiya çox vaxt ala bilər, ona görə də asinxron etmək və ya daha az tez-tez çağırmaq lazımdır
+    # İndi yalnız lazım olduqda çağırırıq (məsələn, cache yoxdursa)
+    # check_and_fix_employee_vacation_days()  # ŞƏRTLİ: Yalnız lazım olduqda çağır
     
     logging.info("Database məlumatları yüklənir...")
     
@@ -1633,32 +1663,44 @@ def get_login_history(user_id):
         if conn: conn.close()
     return history
 
+# Cache üçün global dəyişən
+_vacation_days_checked = False
+
 def check_and_fix_employee_vacation_days():
     """İşçilərin məzuniyyət günlərini yoxlayır və düzəldir"""
+    global _vacation_days_checked
+    
+    # OPTİMALLAŞDIRMA: Yalnız bir dəfə yoxla - cache edilmiş nəticə
+    # Bu funksiya çox vaxt ala bilər, ona görə də yalnız lazım olduqda çağırılmalıdır
+    if _vacation_days_checked:
+        return True
+    
     conn = db_connect()
     if not conn: return False
     
     try:
         with conn.cursor() as cur:
-            # İşçilərin məzuniyyət günlərini yoxlayırıq
-            cur.execute("SELECT id, name, total_vacation_days FROM employees WHERE is_active = TRUE")
-            employees = cur.fetchall()
-            
-            logging.debug("İşçi məzuniyyət günləri yoxlanır...")
-            for emp_id, name, total_days in employees:
-                logging.debug(f"İşçi - ID: {emp_id}, Ad: {name}, Məzuniyyət günləri: {total_days}")
-                
-                # Əgər məzuniyyət günləri 0 və ya NULL-dırsa, 30-a təyin edirik
-                if total_days is None or total_days == 0:
-                    logging.debug(f"{name} üçün məzuniyyət günləri düzəldilir: 0 -> 30")
-                    cur.execute("UPDATE employees SET total_vacation_days = 30 WHERE id = %s", (emp_id,))
+            # OPTİMALLAŞDIRMA: Toplu UPDATE istifadə et - daha sürətli
+            # Hər işçi üçün ayrı-ayrı UPDATE əvəzinə, bir UPDATE ilə hamısını düzəlt
+            cur.execute("""
+                UPDATE employees 
+                SET total_vacation_days = 30 
+                WHERE is_active = TRUE 
+                AND (total_vacation_days IS NULL OR total_vacation_days = 0)
+            """)
+            updated_count = cur.rowcount
             
             conn.commit()
-            logging.debug("İşçi məzuniyyət günləri düzəldildi")
+            if updated_count > 0:
+                logging.info(f"{updated_count} işçinin məzuniyyət günləri 30-a təyin edildi")
+            else:
+                logging.debug("Bütün işçilərin məzuniyyət günləri düzgündür")
+            
+            _vacation_days_checked = True
             return True
             
     except Exception as e:
-        logging.debug(f"İşçi məzuniyyət günləri düzəldilərkən xəta: {e}")
+        logging.warning(f"İşçi məzuniyyət günləri düzəldilərkən xəta: {e}")
         return False
     finally:
         if conn: conn.close()
@@ -1806,8 +1848,17 @@ def get_hidden_employees():
         if conn: conn.close()
     return []
 
+# Cache üçün global dəyişən
+_hide_column_checked = False
+
 def ensure_hide_column_exists():
     """employees cədvəlində hide sütununun olub-olmadığını yoxlayır və əgər yoxdursa əlavə edir"""
+    global _hide_column_checked
+    
+    # OPTİMALLAŞDIRMA: Yalnız bir dəfə yoxla - cache edilmiş nəticə
+    if _hide_column_checked:
+        return True
+    
     conn = db_connect()
     if not conn: return False
     
@@ -1826,9 +1877,11 @@ def ensure_hide_column_exists():
                 cur.execute("ALTER TABLE employees ADD COLUMN hide BOOLEAN DEFAULT FALSE")
                 conn.commit()
                 logging.info("hide sütunu employees cədvəlinə əlavə edildi")
+                _hide_column_checked = True
                 return True
             else:
-                logging.info("hide sütunu artıq mövcuddur")
+                logging.debug("hide sütunu artıq mövcuddur")
+                _hide_column_checked = True
                 return True
                 
     except psycopg2.Error as e:

@@ -1387,9 +1387,12 @@ class UnifiedApplication(tk.Tk):
         # Cache-də "Məni xatırla" seçilibsə, cache-i saxlayırıq
         # Yalnız seçilməyibsə təmizləyirik
         try:
-            # user_data faylından remember_me dəyərini yoxlayırıq
-            user_data = cache_manager.load_user_data()
-            if not user_data.get("remember_me", False):
+            # get_user_credentials funksiyasından remember_me dəyərini yoxlayırıq
+            # Bu funksiya həm user_data, həm də cache fayllarını yoxlayır
+            credentials = cache_manager.get_user_credentials()
+            remember_me = credentials.get("remember_me", False)
+            
+            if not remember_me:
                 cache_manager.clear_cache()  # Bu halda bütün cache təmizlənir
                 logging.info("Remember me seçilmədiyi üçün cache təmizləndi.")
             else:
@@ -1986,13 +1989,31 @@ class UnifiedApplication(tk.Tk):
             else:
                 # Python rejimində - main.py ilə başlat
                 executable = sys.executable
-                script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                main_script = os.path.join(script_dir, 'main.py')
+                # Düzgün yol: __file__ = src/core/main.py, bir dəfə dirname = src/core, bir dəfə daha = src, bir dəfə daha = root
+                current_file = os.path.abspath(__file__)  # src/core/main.py
+                src_dir = os.path.dirname(os.path.dirname(current_file))  # src
+                root_dir = os.path.dirname(src_dir)  # root (mezuniyyet-en-yeni)
+                main_script = os.path.join(root_dir, 'main.py')
+                
+                logging.info(f"Restart: current_file={current_file}, root_dir={root_dir}, main_script={main_script}")
+                print(f"DEBUG: Restart: current_file={current_file}, root_dir={root_dir}, main_script={main_script}")
+                
                 if os.path.exists(main_script):
-                    subprocess.Popen([executable, main_script], cwd=os.getcwd())
+                    # Working directory-ni root_dir-ə təyin et
+                    subprocess.Popen([executable, main_script], cwd=root_dir)
+                    logging.info(f"Proqram yenidən başladıldı: {executable} {main_script}")
+                    print(f"DEBUG: Proqram yenidən başladıldı: {executable} {main_script}")
                 else:
-                    # Fallback - sadəcə Python interpreter
-                    subprocess.Popen([executable], cwd=os.getcwd())
+                    # Fallback - cari working directory-də main.py axtar
+                    cwd = os.getcwd()
+                    fallback_main = os.path.join(cwd, 'main.py')
+                    if os.path.exists(fallback_main):
+                        subprocess.Popen([executable, fallback_main], cwd=cwd)
+                        logging.info(f"Proqram fallback ilə yenidən başladıldı: {executable} {fallback_main}")
+                        print(f"DEBUG: Proqram fallback ilə yenidən başladıldı: {executable} {fallback_main}")
+                    else:
+                        logging.error(f"main.py tapılmadı: {main_script} və ya {fallback_main}")
+                        print(f"ERROR: main.py tapılmadı: {main_script} və ya {fallback_main}")
             
             # Cari proqramı bağla - qısa gecikmə ilə
             self.after(500, lambda: self.destroy())

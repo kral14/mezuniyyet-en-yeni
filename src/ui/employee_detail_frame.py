@@ -21,10 +21,10 @@ class EmployeeDetailFrame(ttk.Frame):
         self.main_app_ref = main_app_ref # Ana pəncərəyə referans
         # Bu çərçivənin daxili, update_data ilə dinamik dolacaq
         self.header_container = ttk.Frame(self, style="Card.TFrame")
-        self.header_container.pack(fill='x', padx=10)
+        self.header_container.pack(fill='x', padx=6)  # Optimizasiya: boşluq azaldıldı
         
         self.tree_area_frame = ttk.Frame(self)
-        self.tree_area_frame.pack(expand=True, fill='both', padx=10, pady=(0, 10))
+        self.tree_area_frame.pack(expand=True, fill='both', padx=6, pady=(0, 6))  # Optimizasiya: boşluq azaldıldı
         
         # Seçilmiş məzuniyyət üçün
         self.selected_vacation = None
@@ -61,7 +61,7 @@ class EmployeeDetailFrame(ttk.Frame):
             
             # Başlıq hissəsi
             title_bar = ttk.Frame(self.header_container, style="Card.TFrame")
-            title_bar.pack(fill='x', pady=(5,0))
+            title_bar.pack(fill='x', pady=(3,0))  # Optimizasiya: boşluq azaldıldı
             
             # Geri dönmə oxu
             back_button = ttk.Button(
@@ -71,7 +71,7 @@ class EmployeeDetailFrame(ttk.Frame):
                 style="Card.TButton",
                 width=8
             )
-            back_button.pack(side='left', padx=(0, 15))
+            back_button.pack(side='left', padx=(0, 10))  # Optimizasiya: boşluq azaldıldı
             
             # İşçi adı
             ttk.Label(title_bar, text=info['name'], font=("Helvetica", 18, "bold"), style="Card.TLabel").pack(side='left', anchor='w')
@@ -93,7 +93,7 @@ class EmployeeDetailFrame(ttk.Frame):
             if can_add_vacation:
                 # Düymələr çərçivəsi
                 buttons_frame = ttk.Frame(self.header_container, style="Card.TFrame")
-                buttons_frame.pack(pady=10)
+                buttons_frame.pack(pady=6)  # Optimizasiya: boşluq azaldıldı
                 
                 ttk.Button(
                     buttons_frame, 

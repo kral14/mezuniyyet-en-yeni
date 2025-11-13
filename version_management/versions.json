@@ -8,6 +8,24 @@
       "target_path": "C:/Users/nesib/OneDrive/Masaüstü/versiyalar",
       "zip_path": "C:/Users/nesib/OneDrive/Masaüstü/versiyalar\\v1.0.zip",
       "files_count": 174
+    },
+    {
+      "version": "7.5",
+      "date": "2025-11-13 14:48:56",
+      "notes": "deyisiklikler ui",
+      "source_path": "C:/Users/nesib/Desktop/v7.11/mezuniyyet-en-yeni",
+      "target_path": "C:/Users/nesib/Desktop/yeni versiyalar",
+      "zip_path": "C:/Users/nesib/Desktop/yeni versiyalar\\v7.5.zip",
+      "files_count": 171
+    },
+    {
+      "version": "7.156",
+      "date": "2025-11-13 14:55:59",
+      "notes": "xetalar duzelti",
+      "source_path": "C:/Users/nesib/Desktop/v7.11/mezuniyyet-en-yeni",
+      "target_path": "C:/Users/nesib/Desktop/yeni versiyalar",
+      "zip_path": "C:/Users/nesib/Desktop/yeni versiyalar\\v7.156.zip",
+      "files_count": 171
     }
   ]
 }
