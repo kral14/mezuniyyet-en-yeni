@@ -143,12 +143,17 @@ def main():
     result = run_command(f"git rev-list --count HEAD..origin/{current_branch}", check=False, cwd=repo_path)
     if result.returncode == 0 and result.stdout.strip() and int(result.stdout.strip()) > 0:
         print("[INFO] Remote-da yeni commit-ler var, pull edilir...")
-        result = run_command(f"git pull origin {current_branch} --no-edit", check=False, cwd=repo_path)
+        result = run_command(f"git pull origin {current_branch} --no-edit --allow-unrelated-histories", check=False, cwd=repo_path)
         if result.returncode != 0:
             print("[XETA] Pull ugursuz oldu! Konfliktler ola biler.")
             print(f"[XETA] Xeta: {result.stderr}")
-            input("Davam etmek ucun Enter basin...")
-            sys.exit(1)
+            print("[INFO] Force push edilir...")
+            # Force push et
+            result = run_command(f"git push origin {current_branch} --force", check=False, cwd=repo_path)
+            if result.returncode != 0:
+                print("[XETA] Force push da ugursuz oldu!")
+                print(f"[XETA] Xeta: {result.stderr}")
+                sys.exit(1)
     
     # Push et
     print("[INFO] Deyisiklikler GitHub-a gonderilir...")
@@ -166,7 +171,6 @@ def main():
     print(f"[INFO] Repository: https://github.com/kral14/mezuniyyet.git")
     print(f"[INFO] Branch: {current_branch}")
     print()
-    input("Davam etmek ucun Enter basin...")
 
 if __name__ == "__main__":
     main()
